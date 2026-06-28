@@ -1763,9 +1763,12 @@ function obCptCell(t){
 var FPRED={pd:[],ptu:[]};
 /* Capacidades por perfil (TOs/scuttles) — editável via modal futuro */
 var OB_CAP={
-  /* Capacidade em cages/scuttles por tipologia — baseado no Planner (1 Carreta = 28 scuttles).
-     Carreta Expressa ≈ 36, Truck ≈ 20, Toco ≈ 13, 3/4 ≈ 8 (proporcional ao fator Carreta=28). */
-  'Carreta Expressa':36,'Carreta':28,'Truck':20,'Toco':13,'3/4':8
+  /* Posições por tipologia conforme Planner (aba Stage Out / ANALISE OCUP).
+     Carreta Expressa = 29 posições (confirmado Stage Out col POSIÇÕES TIPOLOGIA).
+     Carreta = 28, Truck Expressa = 16, Truck = 16, Toco = 12, 3/4 = 8.
+     Threshold operacional: 80% = ocupação validada pelo Field (ANALISE OCUP).
+     vol_vehicle em m³: Carreta Expressa=95m³, Truck Expressa=56m³ (BD OCUP — pendente CSV). */
+  'Carreta Expressa':29,'Carreta':28,'Truck':16,'Toco':12,'3/4':8
 };
 
 function obCapacity(tipo,perfil,tipologia){
@@ -1819,55 +1822,60 @@ function statusPlannerLabel(t){
 
 function obDecisao(t,tosData){
   /* Cadeia de decisao preditiva Outbound — avaliada em ordem, first match vence.
-     Usa: evolucao, cpt (Schedule Departure), schedArr (ETA Origem), actualArr */
-  if(isCancelada(t))return'cancelada'; /* estado terminal, prioridade maxima — para o relogio */
+     Usa: evolucao, cpt (Schedule Departure), schedArr (ETA Origem), actualArr.
+     THRESHOLD OCUPAÇÃO: 80% (Planner ANALISE OCUP) — abaixo = risco de cancelamento.
+     Unidade: scuttles / posições_tipologia (OB_CAP). */
+  if(isCancelada(t))return'cancelada';
   if(t.evolucao==='left')return'expedido';
   var now=new Date();
   var cptMin=t.cpt?Math.round((t.cpt-now)/60000):null;
   var etaOrigMin=t.schedArr?Math.round((t.schedArr-now)/60000):null;
-  var prodIniciada=(t.evolucao==='loading'||t.evolucao==='patioOB');
+  var prodIniciada=(t.evolucao==='loading'||t.evolucao==='patioOB'||t.evolucao==='docado');
   var temDriver=(t.evolucao!=='pending');
   var chegou=(!!t.actualArr);
-  /* Ocupacao por TOs disponíveis */
-  var tosDisp=(tosData&&tosData.tos)||0;
-  var cap=obCapacity(t.tipo,t.perfil,t.tipologia);
-  var ocupPct=cap>0?Math.round(tosDisp/cap*100):null;
-  /* Regra CE: ADO min=1500, factível a partir de 500 */
-  var isCE=t.dest&&t.dest.toLowerCase().indexOf('hub_ce')>=0;
-  var volCritico=tosDisp>0&&(isCE?tosDisp<500:(ocupPct!==null&&ocupPct<30));
-  var volBaixo  =tosDisp>0&&(isCE?tosDisp<1500&&tosDisp>=500:(ocupPct!==null&&ocupPct<50&&ocupPct>=30));
 
-  /* 1. CPT vencido ha +3h sem producao = Possivel Infrutifera */
+  /* Ocupação por scuttles — threshold operacional 80% (Planner) */
+  var cages=(tosData&&tosData.cages)||0;
+  var tos=(tosData&&tosData.tos)||0;
+  var cap=obCapacity(t.tipo,t.perfil,t.tipologia);
+  var ocupPct=cap>0&&cages>0?Math.round(cages/cap*100):(cap>0&&tos>0?Math.round(tos/cap*100):null);
+
+  /* Regra CE: ADO min=1500, factível a partir de 500 */
+  var isCE=t.dest&&(t.dest.toLowerCase().indexOf('hub_ce')>=0||t.dest.toLowerCase().indexOf('xpt_ce')>=0);
+  var tosDisp=tos||0;
+  var volCritico=tosDisp>0&&(isCE?tosDisp<500:(ocupPct!==null&&ocupPct<60));
+  var volBaixo  =tosDisp>0&&(isCE?tosDisp<1500&&tosDisp>=500:(ocupPct!==null&&ocupPct<80&&ocupPct>=60));
+
+  /* 1. CPT vencido há +3h sem produção = Possível Infrutífera */
   if(cptMin!==null&&cptMin<-180&&!prodIniciada)return'poss-inf';
 
-  /* 2. Producao iniciada (carregando/patio/lacrado) = sempre Expedir
-        CPT proximo apenas aumenta urgencia — nao cancela quem ja esta produzindo */
+  /* 2. Produção iniciada = sempre Expedir */
   if(prodIniciada)return'expedir';
 
-  /* A partir daqui: sem producao iniciada */
-
-  /* 5. Sem assign ate 30min antes do ETA Origem = Possivel NS */
+  /* 3. Sem assign até 30min antes do ETA Origem = Possível NS */
   if(!temDriver&&etaOrigMin!==null&&etaOrigMin<=30)return'poss-ns';
 
-  /* 6. Atribuido mas sem chegada e CPT ja vencido = Possivel NS */
+  /* 4. Atribuído mas sem chegada e CPT já vencido = Possível NS */
   if(temDriver&&!chegou&&cptMin!==null&&cptMin<0)return'poss-ns';
 
-  /* 7. CPT < 30min sem carregamento = Cancelar */
+  /* 5. CPT < 30min sem carregamento = Cancelar */
   if(cptMin!==null&&cptMin<=30&&!prodIniciada)return'cancelar';
 
-  /* 8. ETA Origem vencido ha +2h sem driver = Cancelar */
+  /* 6. ETA Origem vencido há +2h sem driver = Cancelar */
   if(!temDriver&&etaOrigMin!==null&&etaOrigMin<-120)return'cancelar';
 
-  /* 9. CPT < 2h sem carregamento = Possivel Cancelamento */
+  /* 7. CPT < 2h sem carregamento = Possível Cancelamento */
   if(cptMin!==null&&cptMin<=120&&!prodIniciada)return'poss-cancel';
 
-  /* 9b. Volume critico (TOs carregados) = reforça risco independente do CPT */
-  if(tosDisp>0&&volCritico&&cptMin!==null&&cptMin<=120)return'poss-cancel';
+  /* 8. Volume crítico (< 60% ocupação ou < 500 TOs CE) + CPT < 2h = reforça risco */
+  if(volCritico&&cptMin!==null&&cptMin<=120)return'poss-cancel';
 
-  /* 10. CPT > 3h = Monitorar (proximo turno) */
+  /* 9. Volume baixo (60-79% ou 500-1499 TOs CE) = Monitorar */
+  if(volBaixo)return'monitorar';
+
+  /* 10. CPT > 3h = Monitorar */
   if(cptMin!==null&&cptMin>180)return'monitorar';
 
-  /* Default */
   return'monitorar';
 }
 
@@ -2474,21 +2482,24 @@ function tipologiaB(tip){
 }
 
 function occPizzaCell(tosData,cap,isCE){
-  /* Pizza de ocupação — PROXY por scuttles/capacidade.
-     NOTA: o SPX calcula ocupação real em PEDIDOS (ex: 4760/6300=76%),
-     que depende do volume médio de pacotes por TO em tempo real — dado
-     não disponível nos CSVs exportados. Esta pizza usa scuttles/capacidade
-     como aproximação. Capacidade em pedidos será implementada quando
-     o CSV com esse campo for identificado. */
+  /* Pizza de ocupação — proxy por scuttles/posições_tipologia.
+     THRESHOLD OPERACIONAL: 80% = critério do Field para validar ocupação (ANALISE OCUP do Planner).
+     Cores calibradas conforme decisão operacional:
+       ≥ 80% → Verde  = Ocupação validada, expedir
+       60–79% → Âmbar = Monitorar, próximo do threshold
+       < 60%  → Vermelho = Abaixo do mínimo operacional
+     NOTA: SPX calcula ocupação em m³/vol_vehicle (ex: 4760/6300=76%).
+     vol_vehicle = 95m³ Carreta Expressa, 56m³ Truck Expressa (BD OCUP do Planner).
+     Esse dado não está disponível nos CSVs exportados ainda — proxy em scuttles mantido. */
   if(!tosData||(!tosData.tos&&!tosData.cages&&!tosData.hasStagingData))
     return '<span class="dim2">--</span>';
 
-  var tos    = tosData.tos||0;
-  var cages  = tosData.cages||0;
+  var tos      = tosData.tos||0;
+  var cages    = tosData.cages||0;
   var capacity = tosData.hasStagingData ? tosData.capacity : (cap||28);
 
   /* % proxy: cages/capacidade se tiver staging, TOs/cap como fallback */
-  var pct, isProxy=true;
+  var pct;
   if(tosData.hasStagingData && capacity>0){
     pct = cages>0 ? Math.round(cages/capacity*100) : Math.round(tos/capacity*100);
   } else {
@@ -2502,11 +2513,17 @@ function occPizzaCell(tosData,cap,isCE){
   var dash=circ*(pctDisp/100);
   var gap=circ-dash;
 
-  /* Cor mais apagada para indicar dado estimado, não real */
-  var color    = pct>=100?'#f87171':pct>=70?'#4ade80':pct>=40?'#fbbf24':'#f87171';
-  var txtColor = color;
+  /* Cores calibradas pelo threshold operacional de 80% (Planner ANALISE OCUP) */
+  var color, decLabel, decColor;
+  if(pct>=80){
+    color='#4ade80'; decLabel='Ocup. ≥80%'; decColor='#4ade80';
+  } else if(pct>=60){
+    color='#fbbf24'; decLabel='Monitorar'; decColor='#fbbf24';
+  } else {
+    color='#f87171'; decLabel='Abaixo 80%'; decColor='#f87171';
+  }
 
-  /* ADO baseado no total de TOs */
+  /* ADO — baseado no total de TOs (pacotes sistêmicos) */
   var adoTag='';
   if(isCE&&tos>0){
     if(tos>=1500)     adoTag='<span style="color:#4ade80;font-weight:700">ADO OK</span>';
@@ -2527,23 +2544,25 @@ function occPizzaCell(tosData,cap,isCE){
     detailLines='<span>'+tos.toLocaleString('pt-BR')+' TOs</span>';
   }
 
-  /* Label proxy — deixa claro que % não é o real do SPX */
-  var proxyLabel='<span title="% estimado por scuttles/capacidade — ocupação real em pedidos não disponível nos CSVs" '+
+  /* Decisão operacional abaixo do donut */
+  var decTag='<span style="color:'+decColor+';font-weight:700;font-size:9px">'+decLabel+'</span>';
+
+  /* Label proxy */
+  var proxyLabel='<span title="% por scuttles/posições_tipologia (Planner). SPX usa m³/vol_vehicle (BD OCUP — pendente CSV)." '+
     'style="color:var(--text3);font-size:9px;cursor:help;border-bottom:1px dashed var(--text3)">~proxy</span>';
 
   return '<div class="occ-cell">'+
-    '<div class="occ-ring-wrap" title="Proxy: '+pct+'% baseado em scuttles. Ocupação real em pedidos (SPX) não disponível nos CSVs exportados.">'+
+    '<div class="occ-ring-wrap" title="'+pct+'% scuttles (threshold operacional: 80%). SPX usa volume m³ — BD OCUP pendente.">'+
       '<svg width="48" height="48" viewBox="0 0 48 48">'+
-        /* Arco de fundo tracejado para indicar dado estimado */
         '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--bg5)" stroke-width="'+stroke+'" stroke-dasharray="4 3"/>'+
         '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+stroke+'"'+
           ' stroke-dasharray="'+dash.toFixed(2)+' '+gap.toFixed(2)+'"'+
           ' stroke-dashoffset="'+(circ/4).toFixed(2)+'"'+
-          ' stroke-linecap="round" transform="rotate(-90 '+cx+' '+cy+')" style="transition:stroke-dasharray .8s ease;opacity:0.75"/>'+
+          ' stroke-linecap="round" transform="rotate(-90 '+cx+' '+cy+')" style="transition:stroke-dasharray .8s ease;opacity:0.8"/>'+
       '</svg>'+
-      '<div class="occ-pct-label" style="color:'+txtColor+';opacity:0.85">'+pct+'%</div>'+
+      '<div class="occ-pct-label" style="color:'+color+';opacity:0.9">'+pct+'%</div>'+
     '</div>'+
-    '<div class="occ-detail">'+detailLines+proxyLabel+(adoTag?adoTag:'')+'</div>'+
+    '<div class="occ-detail">'+detailLines+decTag+proxyLabel+(adoTag?adoTag:'')+'</div>'+
   '</div>';
 }
 

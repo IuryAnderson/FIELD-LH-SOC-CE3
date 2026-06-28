@@ -326,6 +326,64 @@ tr:hover td{background:var(--bg3);}
 .ob-ind{display:flex;flex-direction:column;gap:4px;min-width:120px;}
 .ob-bar-wrap{position:relative;height:5px;background:var(--bg5);border-radius:3px;overflow:hidden;margin-bottom:1px;}
 .ob-bar-fill{height:5px;border-radius:3px;transition:width .8s ease,background .8s ease;}
+/* ── DOCK CHIPS ─────────────────────────────────────────────────────────── */
+.dock-chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:90px;}
+.dock-chip{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:28px;border-radius:6px;font-size:11px;font-weight:800;
+  font-family:var(--mono);cursor:pointer;border:1.5px solid transparent;
+  transition:all .18s ease;position:relative;user-select:none;
+  letter-spacing:-.02em;
+}
+/* Disponível — ciano pulsante */
+.dock-chip.available{
+  background:rgba(6,182,212,.12);border-color:rgba(6,182,212,.5);color:#22d3ee;
+  box-shadow:0 0 0 0 rgba(6,182,212,.4);
+  animation:dock-pulse 2.5s infinite;
+}
+.dock-chip.available:hover{
+  background:rgba(6,182,212,.28);border-color:#22d3ee;color:#fff;
+  transform:scale(1.12);box-shadow:0 0 10px rgba(6,182,212,.5);
+  animation:none;
+}
+@keyframes dock-pulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(6,182,212,.35);}
+  50%{box-shadow:0 0 0 5px rgba(6,182,212,.0);}
+}
+/* Selecionada pela própria trip — verde */
+.dock-chip.mine{
+  background:rgba(34,197,94,.2);border-color:#22c55e;color:#4ade80;
+  box-shadow:0 0 8px rgba(34,197,94,.3);font-size:12px;
+  animation:dock-glow 2s infinite;
+}
+.dock-chip.mine:hover{
+  background:rgba(239,68,68,.2);border-color:#ef4444;color:#f87171;
+}
+.dock-chip.mine:hover::after{content:'✕';position:absolute;font-size:10px;}
+@keyframes dock-glow{
+  0%,100%{box-shadow:0 0 6px rgba(34,197,94,.3);}
+  50%{box-shadow:0 0 14px rgba(34,197,94,.6);}
+}
+/* Ocupada por outra trip — vermelho bloqueado */
+.dock-chip.taken{
+  background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);
+  color:#f87171;cursor:not-allowed;opacity:.6;font-size:10px;
+}
+.dock-chip.taken:hover{opacity:.8;}
+/* Trip já expedida — doca que foi usada: roxo histórico */
+.dock-chip.done-used{
+  background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.4);
+  color:#a78bfa;cursor:default;opacity:.85;animation:none;
+  box-shadow:0 0 6px rgba(139,92,246,.15);
+}
+.dock-chip.done-used:hover{opacity:1;box-shadow:0 0 10px rgba(139,92,246,.3);}
+/* Trip já expedida — docas não usadas: desabilitadas */
+.dock-chip.done{
+  background:rgba(100,116,139,.08);border-color:rgba(100,116,139,.2);
+  color:#475569;cursor:default;opacity:.4;animation:none;
+}
+/* ────────────────────────────────────────────────────────────────────────── */
+
 .occ-cell{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;}
 .occ-ring-wrap{position:relative;width:48px;height:48px;flex-shrink:0;}
 .occ-ring-wrap svg{display:block;}
@@ -790,6 +848,120 @@ tr:hover td{background:var(--bg3);}
 var IN=[],OUT=[],docaMap={},QUEUE_MAP={},QUEUE_MAP_OB={};
 var GLOBAL_tnEventsOB={},GLOBAL_plateEventsOB={};/* eventos brutos da fila OB, persistem entre imports para re-enriquecimento */
 var PLANNER_MAP={};/* trip_number -> {tipologia, transportadora, statusPlanner} */
+var DOCK_STATE={};/* doca_num -> {tn, driver, dest} | null = livre */
+
+/* Mapa de docas sugeridas por destino (keyword match) */
+var DOCA_MAP=[
+  {keys:['SP8'],                              docas:[34,33,32,31]},
+  {keys:['BA2'],                              docas:[32,31]},
+  {keys:['PE2'],                              docas:[31,30]},
+  {keys:['Cajazeiras','LCE-01','cajazeiras'], docas:[31,30,29]},
+  {keys:['Caucaia','LCE-02','caucaia'],       docas:[30,29,28]},
+  {keys:['Juazeiro','LCE-04','juazeiro'],     docas:[27,26]},
+  {keys:['Fortaleza','LCE-05','fortaleza'],   docas:[27,26,25,24]},
+  {keys:['Redenção','Redencao','LCE-91','91'],docas:[25,24]},
+  {keys:['Limoeiro','LCE-92','92'],           docas:[24,23,22]},
+  {keys:['Canindé','Caninde','LCE-93','93'],  docas:[24,23]},
+  {keys:['Gonçalo','Goncalo','LCE-94','94'],  docas:[23,22,21]},
+];
+
+function getDockSuggestions(dest){
+  if(!dest)return[];
+  var d=dest.toLowerCase();
+  for(var i=0;i<DOCA_MAP.length;i++){
+    var e=DOCA_MAP[i];
+    for(var j=0;j<e.keys.length;j++){
+      if(d.indexOf(e.keys[j].toLowerCase())>=0)return e.docas;
+    }
+  }
+  return[];
+}
+
+function assignDock(dockNum,tn){
+  /* Atribui doca a uma trip. Libera doca anterior da trip se houver. */
+  /* Libera doca anterior se a trip já tinha uma */
+  Object.keys(DOCK_STATE).forEach(function(k){
+    if(DOCK_STATE[k]&&DOCK_STATE[k].tn===tn)delete DOCK_STATE[k];
+  });
+  var t=OUT.find(function(x){return x.tn===tn;});
+  DOCK_STATE[dockNum]={tn:tn,driver:t?firstTwo(t.driver):'',dest:t?shortO(t.dest):''};
+  /* Sync com t.docaOB para o Seatalk e coluna doca */
+  if(t)t.docaOB='OUT '+dockNum;
+  renderOut();
+}
+
+function releaseDock(tn){
+  /* Libera manualmente a doca de uma trip */
+  Object.keys(DOCK_STATE).forEach(function(k){
+    if(DOCK_STATE[k]&&DOCK_STATE[k].tn===tn)delete DOCK_STATE[k];
+  });
+  var t=OUT.find(function(x){return x.tn===tn;});
+  if(t)t.docaOB='';
+  renderOut();
+}
+
+function autoReleaseDocks(){
+  /* Quando uma trip é expedida/cancelada, marca a doca como histórica (done)
+     em vez de deletar — assim o chip continua visível em roxo no histórico. */
+  Object.keys(DOCK_STATE).forEach(function(k){
+    var entry=DOCK_STATE[k];
+    if(!entry||entry.done)return;
+    var t=OUT.find(function(x){return x.tn===entry.tn;});
+    if(t&&(effEvo(t)==='left'||effEvo(t)==='cancelada')){
+      DOCK_STATE[k].done=true; /* marca como histórico — não bloqueia mais */
+    }
+  });
+}
+
+
+function dockChipsCell(t){
+  /* Renderiza chips de doca para a coluna DOCA OB no Monitoramento */
+  autoReleaseDocks();
+  var ee=effEvo(t);
+  var isDone=(ee==='left'||ee==='cancelada');
+  var suggestions=getDockSuggestions(t.dest);
+
+  /* Verifica se essa trip tem doca atribuída (ativa ou histórica) */
+  var myDock=null,myDockDone=false;
+  Object.keys(DOCK_STATE).forEach(function(k){
+    if(DOCK_STATE[k]&&DOCK_STATE[k].tn===t.tn){
+      myDock=parseInt(k);myDockDone=!!DOCK_STATE[k].done;
+    }
+  });
+
+  if(!suggestions.length){
+    var doca=t.docaOB||'';
+    return'<input class="doca-input'+(doca?' filled':'')+'" type="text" placeholder="Doca" maxlength="10" value="'+doca+'" data-tn="'+t.tn+'" oninput="saveDoca(this)">';
+  }
+
+  var chips='<div class="dock-chips">';
+
+  if(myDock!==null){
+    if(isDone||myDockDone){
+      /* Histórico — chip roxo: veículo passou por esta doca */
+      chips+='<div class="dock-chip done-used" title="Expedido pela doca '+myDock+'">'+myDock+'</div>';
+    } else {
+      /* Ativo — chip verde, clique para liberar */
+      chips+='<div class="dock-chip mine" title="Doca '+myDock+' \u2014 clique para liberar" onclick="releaseDock(\''+t.tn+'\')">'+myDock+'</div>';
+    }
+  } else if(isDone){
+    suggestions.forEach(function(num){
+      chips+='<div class="dock-chip done" title="Trip finalizada sem doca registrada">'+num+'</div>';
+    });
+  } else {
+    suggestions.forEach(function(num){
+      var state=DOCK_STATE[num];
+      var activeState=(state&&!state.done)?state:null;
+      if(activeState){
+        chips+='<div class="dock-chip taken" title="Ocupada: '+activeState.driver+' → '+activeState.dest+'">'+num+'</div>';
+      } else {
+        chips+='<div class="dock-chip available" title="Doca '+num+' — clique para atribuir" onclick="assignDock('+num+',\''+t.tn+'\')">'+num+'</div>';
+      }
+    });
+  }
+  chips+='</div>';
+  return chips;
+}
 var HIDDEN_TNS=new Set();/* TNs ocultos visualmente — permanecem nos arrays IN/OUT */
 var MANUAL_STATUS={};/* TN -> evolucao manual (override) */
 var TOS_MAP={};/* dest -> {tos:N, orders:N, cages:N, capacity:N, occPct:N, hasStagingData:bool} */
@@ -2119,7 +2291,7 @@ function renderOut(){
     var loaded=t.loadingTime?'<span class="mono dim" style="font-size:11px">'+fmtT(t.loadingTime)+'</span>':'<span class="dim2">--</span>';
     var sealed=t.sealedTime?'<span class="mono dim" style="font-size:11px">'+fmtT(t.sealedTime)+'</span>':'<span class="dim2">--</span>';
     var etaOrigCell=t.schedArr?'<span class="mono dim" style="font-size:11px">'+fmtT(t.schedArr)+'</span><br><span class="ob-sub">'+fmtD(t.schedArr)+'</span>':'<span class="dim2">--</span>';
-    var docaCell=t.patioOB?'<span class="mono" style="font-size:11px;color:#a78bfa;font-weight:600">'+(t.docaOB||'--')+'</span>':'<span class="dim2">--</span>';
+    var docaCell=dockChipsCell(t);
     return '<tr class="'+rc+'">'+
       '<td>'+tnCellOB(t)+'</td>'+
       '<td style="font-size:11.5px;font-weight:500">'+shortO(t.dest)+'</td>'+
@@ -2218,24 +2390,30 @@ function exportSeatalkIn(){
 }
 
 function exportSeatalkOut(){
-  /* Formato Field: bloco por trip com TN / Driver / ETA Origem (CPT) / Placa / Destino / Observacao.
-     Observacao por estagio de evolucao:
-       pending  -> ACIONANDO 3PL    (sem driver atribuido)
-       assigned -> VALIDANDO CHEGADA (atribuido, aguardando chegada do driver)
-       arrived  -> DETERMINAR DOCA   (chegou, falta atribuir doca)
-       patioOB  -> DOCADO            (docado, carregamento ainda nao iniciado)
-       loading  -> CARREGANDO        (carregamento em andamento)
-       left     -> EXPEDIDO          (finalizado)
-     Atraso no ETA Origem: compara schedArr contra o sinal de apresentacao mais tardio
-       entre actualArr (chegada real) e patioOBTime (inclusao na fila) — qualquer um
-       dos dois posterior ao ETA Origem conta como atraso de apresentacao.
-     CPT cumprido: so para trips expedidas (left), confere se sealedTime (ou actualDep
-       na ausencia de sealedTime) ficou dentro do cpt (Schedule Departure Time). */
+  /* Formato Field: bloco por trip com TN / Driver / ETA Origem (CPT) / Placa / Destino / Docas sugeridas / Observacao. */
   var vis=applyFOut(OUT);
   if(!vis.length){alert('Nenhuma viagem para exportar.');return;}
   vis=vis.slice().sort(function(a,b){return (a.schedArr||new Date(9e15))-(b.schedArr||new Date(9e15));});
 
-  var obsMap={pending:'ACIONANDO 3PL',assigned:'VALIDANDO CHEGADA',arrived:'DETERMINAR DOCA',patioOB:'DOCADO',loading:'CARREGANDO',left:'EXPEDIDO',cancelada:'CANCELADA'};
+  /* Mapa de docas por destino — match por keyword no t.dest.
+     Todas as docas possíveis listadas, podem se cruzar com outros destinos. */
+  var DOCA_MAP=[
+    {keys:['SP8'],          docas:'34, 33, 32, 31'},
+    {keys:['BA2'],          docas:'32, 31'},
+    {keys:['PE2'],          docas:'31, 30'},
+    {keys:['Cajazeiras','LCE-01','LCE01','cajazeiras'], docas:'31, 30, 29'},
+    {keys:['Caucaia','LCE-02','LCE02','caucaia'],       docas:'30, 29, 28'},
+    {keys:['Juazeiro','LCE-04','LCE04','juazeiro'],     docas:'27, 26'},
+    {keys:['Fortaleza','LCE-05','LCE05','fortaleza'],   docas:'27, 26, 25, 24'},
+    {keys:['Redenção','Redencao','LCE-91','LCE91','91'],docas:'25, 24'},
+    {keys:['Limoeiro','LCE-92','LCE92','92'],           docas:'24, 23, 22'},
+    {keys:['Canindé','Caninde','LCE-93','LCE93','93'],  docas:'24, 23'},
+    {keys:['Gonçalo','Goncalo','LCE-94','LCE94','94'],  docas:'23, 22, 21'},
+  ];
+
+
+  var obsMap={pending:'ACIONANDO 3PL',assigned:'VALIDANDO CHEGADA',arrived:'DETERMINAR DOCA',
+              patioOB:'DOCADO',docado:'DOCADO',loading:'CARREGANDO',left:'EXPEDIDO',cancelada:'CANCELADA'};
 
   var lines=[];
   vis.forEach(function(t){
@@ -2244,7 +2422,7 @@ function exportSeatalkOut(){
     var cptStr=t.cpt?fmtT(t.cpt):'--';
     var etaStr=t.schedArr?fmtDT(t.schedArr):'--';
 
-    /* Atraso de apresentacao: o mais tardio entre chegada real e inclusao na fila */
+    /* Atraso de apresentacao */
     var apresentacao=null;
     if(t.actualArr&&t.patioOBTime)apresentacao=t.actualArr>t.patioOBTime?t.actualArr:t.patioOBTime;
     else apresentacao=t.actualArr||t.patioOBTime||null;
@@ -2254,18 +2432,26 @@ function exportSeatalkOut(){
       atrasoTag=' \u26A0\uFE0F +'+obFmtDur(atrasoMin);
     }
 
-    /* CPT cumprido: somente para trips ja expedidas */
+    /* CPT cumprido */
     var cptOkTag='';
     if(t.evolucao==='left'&&t.cpt){
       var ref=t.sealedTime||t.actualDep;
       if(ref&&ref<=t.cpt)cptOkTag=' \u2705';
     }
 
+    /* Docas sugeridas — usa doca atribuída se disponível, senão mostra sugestões */
+    var myDockStr=null;
+    Object.keys(DOCK_STATE).forEach(function(k){
+      if(DOCK_STATE[k]&&DOCK_STATE[k].tn===t.tn)myDockStr='🚛 DOCA: '+k;
+    });
+    var docaStr=myDockStr||(getDockSuggestions(t.dest).length?'🚛 DOCAS SUGERIDAS: '+getDockSuggestions(t.dest).join(', '):null);
+
     lines.push(t.tn);
     lines.push(t.driver||'--');
     lines.push(etaStr+' (CPT '+cptStr+')'+atrasoTag+cptOkTag);
     lines.push(t.plate);
     lines.push(shortO(t.dest));
+    if(docaStr)lines.push(docaStr);
     lines.push(obs);
     lines.push('');
   });

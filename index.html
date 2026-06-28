@@ -639,6 +639,7 @@ tr:hover td{background:var(--bg3);}
         <div class="pill" id="clock2">--:--</div>
         <div class="pill" id="pill-out">Outbound <span class="hi-grn">--</span></div>
         <button class="btn-exp" onclick="exportSeatalkOut()">Exportar Seatalk</button>
+        <button class="btn-exp" onclick="if(confirm('Limpar todas as docas atribuídas neste turno?'))clearDockState();" style="background:var(--bg4);border-color:var(--line2);color:var(--text3);font-size:11px" title="Resetar docas — use no início de cada turno">🔄 Limpar Docas</button>
       </div>
     </div>
     <div class="toolbar">
@@ -848,7 +849,25 @@ tr:hover td{background:var(--bg3);}
 var IN=[],OUT=[],docaMap={},QUEUE_MAP={},QUEUE_MAP_OB={};
 var GLOBAL_tnEventsOB={},GLOBAL_plateEventsOB={};/* eventos brutos da fila OB, persistem entre imports para re-enriquecimento */
 var PLANNER_MAP={};/* trip_number -> {tipologia, transportadora, statusPlanner} */
-var DOCK_STATE={};/* doca_num -> {tn, driver, dest} | null = livre */
+var DOCK_STATE=(function(){
+  /* Persiste no localStorage para sobreviver a recarregamentos da página.
+     Chave: 'soc_ce3_dock_state'. Dados locais ao navegador — não vai para o GitHub. */
+  try{
+    var saved=localStorage.getItem('soc_ce3_dock_state');
+    return saved?JSON.parse(saved):{};
+  }catch(e){return{};}
+})();
+
+function saveDockState(){
+  try{localStorage.setItem('soc_ce3_dock_state',JSON.stringify(DOCK_STATE));}
+  catch(e){/* localStorage indisponível — sem persistência */}
+}
+
+function clearDockState(){
+  DOCK_STATE={};
+  try{localStorage.removeItem('soc_ce3_dock_state');}catch(e){}
+  renderOut();
+}
 
 /* Mapa de docas sugeridas por destino (keyword match) */
 var DOCA_MAP=[
@@ -887,6 +906,7 @@ function assignDock(dockNum,tn){
   DOCK_STATE[dockNum]={tn:tn,driver:t?firstTwo(t.driver):'',dest:t?shortO(t.dest):''};
   /* Sync com t.docaOB para o Seatalk e coluna doca */
   if(t)t.docaOB='OUT '+dockNum;
+  saveDockState();
   renderOut();
 }
 
@@ -897,6 +917,7 @@ function releaseDock(tn){
   });
   var t=OUT.find(function(x){return x.tn===tn;});
   if(t)t.docaOB='';
+  saveDockState();
   renderOut();
 }
 
@@ -909,6 +930,7 @@ function autoReleaseDocks(){
     var t=OUT.find(function(x){return x.tn===entry.tn;});
     if(t&&(effEvo(t)==='left'||effEvo(t)==='cancelada')){
       DOCK_STATE[k].done=true; /* marca como histórico — não bloqueia mais */
+      saveDockState();
     }
   });
 }
@@ -3856,21 +3878,30 @@ function parsePlannerCSV(text,f){
 
 function applyPlannerEnrichment(){
   /* Re-aplica o Planner no IN e OUT apos qualquer import que traga novas trips.
-     So enriquece se PLANNER_MAP foi previamente carregado. */
-  if(!Object.keys(PLANNER_MAP).length)return;
-  OUT.forEach(function(t){
-    var p=PLANNER_MAP[t.tn];
-    if(!p||!p.isOB)return;
-    if(!t.tipologia)t.tipologia=p.tipologia;
-    if(!t.transportadora)t.transportadora=p.transportadora;
-    if(!t.statusPlanner&&p.statusPlanner)t.statusPlanner=p.statusPlanner;
-  });
-  IN.forEach(function(t){
-    var p=PLANNER_MAP[t.tn];
-    if(!p||p.isOB)return;
-    if(!t.tipologia)t.tipologia=p.tipologia;
-    if(!t.transportadora)t.transportadora=p.transportadora;
-    if(!t.statusPlanner&&p.statusPlanner)t.statusPlanner=p.statusPlanner;
+     So enriquece se PLANNER_MAP foi previamente carregado.
+     Também restaura t.docaOB a partir do DOCK_STATE persistido. */
+  if(Object.keys(PLANNER_MAP).length){
+    OUT.forEach(function(t){
+      var p=PLANNER_MAP[t.tn];
+      if(!p||!p.isOB)return;
+      if(!t.tipologia)t.tipologia=p.tipologia;
+      if(!t.transportadora)t.transportadora=p.transportadora;
+      if(!t.statusPlanner&&p.statusPlanner)t.statusPlanner=p.statusPlanner;
+    });
+    IN.forEach(function(t){
+      var p=PLANNER_MAP[t.tn];
+      if(!p||p.isOB)return;
+      if(!t.tipologia)t.tipologia=p.tipologia;
+      if(!t.transportadora)t.transportadora=p.transportadora;
+      if(!t.statusPlanner&&p.statusPlanner)t.statusPlanner=p.statusPlanner;
+    });
+  }
+  /* Restaura docaOB do DOCK_STATE persistido após reimport */
+  Object.keys(DOCK_STATE).forEach(function(k){
+    var entry=DOCK_STATE[k];
+    if(!entry||entry.done)return;
+    var t=OUT.find(function(x){return x.tn===entry.tn;});
+    if(t&&!t.docaOB)t.docaOB='OUT '+k;
   });
 }
 

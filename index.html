@@ -1561,9 +1561,11 @@ function exportSeatalkIn(){
     if(t.evolucao==='unloaded'){
       sitStr='Concluído';
     } else if(t.evolucao!=='pending'){
-      var ref=cdRef(t); /* MAX(actual, sched) */
-      var sitLabel=t.evolucao==='arrived'?'Aguardando fila':
-                   t.evolucao==='patio'?'Aguardando doca':'Em descarga';
+      var ref,sitLabel;
+      if(t.evolucao==='arrived'){ref=cdRef(t);sitLabel='Aguardando fila';}
+      else if(t.evolucao==='patio'){ref=cdRef(t);sitLabel='Aguardando doca';}
+      else if(t.evolucao==='docado'){ref=t.unloadDocked||cdRef(t);sitLabel='Aguardando abertura';}
+      else{ref=t.unsealed||cdRef(t);sitLabel='Em descarga';}
       if(t.sched&&now<t.sched){
         var ataMin=Math.round((t.sched-now)/60000);
         sitStr='ETA em '+cdFmtMin(ataMin)+' (early \u2014 di\u00E1ria n\u00E3o iniciada)';
@@ -2337,25 +2339,35 @@ function cdCell(t){
            '<div class="cd-sub">ETA '+pad(t.sched.getDate())+'/'+pad(t.sched.getMonth()+1)+' '+pad(t.sched.getHours())+':'+pad(t.sched.getMinutes())+'</div>';
   }
 
-  /* REFERÊNCIA ÚNICA: MAX(actual, sched) — a diária começa quando o veículo
-     chegou OU quando o ETA venceu, o que ocorrer por último.
-     O rótulo muda por estágio mas o cronômetro NÃO reseta ao avançar de estágio. */
-  var ref=cdRef(t); /* MAX(actual, sched) */
+  /* Referência e rótulo por estágio:
+     arrived / patio → MAX(actual, sched): diária contada desde a chegada
+     docado          → unloadDocked: desde quando entrou na doca de descarga
+     unseal          → unsealed: desde quando o deslacre foi iniciado
+     Proteção early em todos: se sched > now, relógio ainda não disparou. */
+  var ref, subLabel;
+  if(t.evolucao==='arrived'){
+    ref=cdRef(t); /* MAX(actual, sched) */
+    subLabel='Aguardando fila';
+  } else if(t.evolucao==='patio'){
+    ref=cdRef(t); /* MAX(actual, sched) — diária conta desde a chegada */
+    subLabel='Aguardando doca';
+  } else if(t.evolucao==='docado'){
+    ref=t.unloadDocked||cdRef(t); /* desde quando entrou na doca */
+    subLabel='Aguardando abertura';
+  } else {
+    /* unseal */
+    ref=t.unsealed||cdRef(t); /* desde quando o deslacre foi iniciado */
+    subLabel='Em descarga';
+  }
 
-  /* Proteção early: se o ETA ainda não venceu, relógio não disparou */
+  /* Proteção early: se ETA ainda não venceu, relógio não disparou */
   if(t.sched&&now<t.sched){
     var ataMin=Math.round((t.sched-now)/60000);
-    var stageLabel=t.evolucao==='arrived'?'Aguardando fila':t.evolucao==='patio'?'Aguardando doca':'Em descarga';
     return'<div class="cd-label cd-pending">ETA em '+cdFmtMin(ataMin)+'</div>'+
-           '<div class="cd-sub">'+stageLabel+' (early \u2014 di\u00E1ria n\u00E3o iniciada)</div>';
+           '<div class="cd-sub">'+subLabel+' (early \u2014 di\u00E1ria n\u00E3o iniciada)</div>';
   }
 
   if(!ref)return'<span class="cd-sub">--</span>';
-
-  /* Rótulo do estágio atual */
-  var subLabel=t.evolucao==='arrived'?'Aguardando fila':
-               t.evolucao==='patio'?'Aguardando doca':'Em descarga';
-
   var elapsed=Math.round((now-ref)/60000);
   if(elapsed<0)elapsed=0;
   var pct=Math.min(elapsed/lim*100,120);
@@ -3713,6 +3725,7 @@ function parseCSVRaw(text,isFin){
     var actual=parseDT(r['Actual Arrival Time']);
     var unsealed=parseDTorNum(r['Unsealed time']);
     var unloaded=parseDTorNum(r['Unloaded time']);
+    var unloadDocked=parseDTorNum(r['Unloading Docked']); /* quando entrou na doca de descarga */
     var tr=(tm[tn]||[]).slice().sort(function(a,b){return parseInt(a['Station Number']||99)-parseInt(b['Station Number']||99);});
     var orig=tr.find(function(rr){return rr['Station Name']!==CE3;})||tr[0];
     var origin=orig?orig['Station Name']:'--';
@@ -3746,7 +3759,7 @@ function parseCSVRaw(text,isFin){
     var turnoArrival=turnoOf(actual);
     var turnoUnseal=turnoOf(unsealed);
     var turnoUnload=turnoOf(unloaded);
-    inbound.push({tn:tn,tripName:r['LH Trip Name']||'',rota:rota,agency:qdata.agency||'--',waitTime:qdata.waitTime||'',origin:origin,plate:plate,driver:driver,orders:orders,tipo:tipo,sched:sched,actual:actual,unsealed:unsealed,unloaded:unloaded,janela:janela,evolucao:evolucao,toDone:toDone,toTotal:toTotal,turnoArrival:turnoArrival,turnoUnseal:turnoUnseal,turnoUnload:turnoUnload});
+    inbound.push({tn:tn,tripName:r['LH Trip Name']||'',rota:rota,agency:qdata.agency||'--',waitTime:qdata.waitTime||'',origin:origin,plate:plate,driver:driver,orders:orders,tipo:tipo,sched:sched,actual:actual,unsealed:unsealed,unloaded:unloaded,unloadDocked:unloadDocked,janela:janela,evolucao:evolucao,toDone:toDone,toTotal:toTotal,turnoArrival:turnoArrival,turnoUnseal:turnoUnseal,turnoUnload:turnoUnload});
   });
 
   /* OUTBOUND: CE3 as origin */

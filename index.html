@@ -505,6 +505,7 @@ tr:hover td{background:var(--bg3);}
       <div class="page-title">Inbound</div>
       <div class="hdr-right">
         <div class="pill" id="clock">--:--</div>
+        <div class="pill" id="tick-label" title="Última atualização automática de CPT/Situação" style="font-size:10px;color:var(--text3);cursor:default">↻ --:--</div>
         <div class="pill" id="pill-in">Inbound <span class="hi">--</span></div>
         <div class="pill" id="pill-sem-rec" style="display:none;background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.4);color:#fbbf24;cursor:default">
           ⚠️ <span id="kpi-sem-rec">0</span> sem recepção
@@ -813,7 +814,11 @@ function tick(){
   var c5=document.getElementById('clock5');if(c5)c5.textContent=ts;
 }
 tick();setInterval(tick,15000);
-setInterval(cdTick,30000); /* atualiza contagem regressiva a cada 30s */
+setInterval(function(){cdTick();updateTickLabel();},60000); /* atualiza CPT/Situação a cada 60s */
+function updateTickLabel(){
+  var el=document.getElementById('tick-label');
+  if(el){var n=new Date();el.textContent='↻ '+pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());}
+}
 ['an-d-from','an-d-to','an-dc-from','an-dc-to','an-espera-min','an-desc-min'].forEach(function(id){
   var el=document.getElementById(id);
   if(el)el.addEventListener('change',function(){
@@ -2063,10 +2068,10 @@ function renderObPred(){
       '<td>'+tipoB(t.tipo)+'</td>'+
       '<td class="dim" style="font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis">'+(t.transportadora||'<span class="dim2">--</span>')+'</td>'+
       '<td>'+tipologiaB(t.tipologia)+'</td>'+
-      '<td>'+evolucaoOutCell(t)+'</td>'+
+      '<td class="ob-evo-wrap" data-ob-evo-tn="'+t.tn+'">'+evolucaoOutCell(t)+'</td>'+
       '<td>'+(t.schedArr?'<span class="mono dim" style="font-size:11px">'+fmtT(t.schedArr)+'</span><br><span class="ob-sub">'+fmtD(t.schedArr)+'</span>':'<span class="dim2">--</span>')+'</td>'+
       '<td style="text-align:center">'+pizzaCell+'</td>'+
-      '<td>'+obCptCell(t)+'</td>'+
+      '<td class="ob-cpt-wrap" data-ob-tn="'+t.tn+'">'+obCptCell(t)+'</td>'+
       '<td>'+sealed+'</td>'+
       '</tr>';
   });
@@ -2125,7 +2130,7 @@ function renderOut(){
       '<td>'+docaCell+'</td>'+
       '<td>'+etaOrigCell+'</td>'+
       '<td>'+obArrivedCell(t)+'</td>'+
-      '<td>'+obCptCell(t)+'</td>'+
+      '<td class="ob-cpt-wrap" data-ob-tn="'+t.tn+'">'+obCptCell(t)+'</td>'+
       '<td>'+loaded+'</td>'+
       '<td>'+sealed+'</td>'+
       '</tr>';
@@ -2364,16 +2369,44 @@ function cdCell(t){
 }
 
 function cdTick(){
-  /* Atualiza apenas as celulas de situacao sem re-renderizar a tabela */
-  var cells=document.querySelectorAll('td[data-tn]');
-  if(!cells.length)return;
-  /* Rebuild a map for fast lookup */
-  var m={};
-  IN.forEach(function(t){m[t.tn]=t;});
-  cells.forEach(function(td){
-    var t=m[td.dataset.tn];
-    if(t)td.innerHTML=cdCell(t);
-  });
+  /* Atualiza células de tempo sem re-renderizar as tabelas.
+     Roda a cada 30s via setInterval. Cobre:
+     1. Situação IB (cdCell) — coluna Situação do Planning Pátio
+     2. CPT Atual OB (obCptCell) — barra de CPT no Monitoramento e CPT Preditivo
+     3. Evolução OB (evolucaoOutCell) — timer de docado sem carregar */
+
+  /* 1. IB — Situação */
+  var ibCells=document.querySelectorAll('td[data-tn]');
+  if(ibCells.length){
+    var mIB={};
+    IN.forEach(function(t){mIB[t.tn]=t;});
+    ibCells.forEach(function(td){
+      var t=mIB[td.dataset.tn];
+      if(t)td.innerHTML=cdCell(t);
+    });
+  }
+
+  /* 2. OB — CPT Atual (Monitoramento + CPT Preditivo) */
+  var obCptCells=document.querySelectorAll('td[data-ob-tn]');
+  if(obCptCells.length){
+    var mOB={};
+    OUT.forEach(function(t){mOB[t.tn]=t;});
+    obCptCells.forEach(function(td){
+      var t=mOB[td.dataset.obTn];
+      if(t)td.innerHTML=obCptCell(t);
+    });
+  }
+
+  /* 3. OB — Evolução (timer docado sem carregar) */
+  var obEvoCells=document.querySelectorAll('td[data-ob-evo-tn]');
+  if(obEvoCells.length){
+    var mOBEvo=mOB||{};
+    if(!Object.keys(mOBEvo).length) OUT.forEach(function(t){mOBEvo[t.tn]=t;});
+    obEvoCells.forEach(function(td){
+      var t=mOBEvo[td.dataset.obEvoTn];
+      if(t)td.innerHTML=evolucaoOutCell(t);
+    });
+  }
 }
 
 function descargaCell(unsealed, unloaded){

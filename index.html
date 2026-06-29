@@ -541,6 +541,11 @@ tr:hover td{background:var(--bg3);}
           <span id="lbl-planner">Importar Planner</span>
           <span class="sb-badge" id="badge-planner">--</span>
         </label>
+        <div class="sb-item" id="nav-spx-bridge" onclick="importSPXBridge()" style="cursor:pointer;">
+          <span class="ico">&#9889;</span>
+          <span id="lbl-spx-bridge">SPX Bridge</span>
+          <span class="sb-badge" id="badge-spx-bridge">--</span>
+        </div>
       </div>
     </div>
   </div>
@@ -3875,6 +3880,220 @@ function parsePlannerCSV(text,f){
   alert('Planner importado:\n  '+totalMap+' trips mapeadas (CE3)\n  Inbound enriquecido: '+enrichedIB+'\n  Outbound enriquecido: '+enrichedOB);
 }
 /* ── FIM PLANNER PARSER ─────────────────────────────────────── */
+
+function importSPXBridge(){
+  /* ── SPX Bridge v2 ─────────────────────────────────────────────────────────
+     Fase 1: ob_tos via extensão Chrome (lh_trip_number + dest + driver)
+     Fase 2: POST /dock_management/queue/list → fila OB ativa (agency/transportadora,
+             placa, driver, doca, queue_number, queue_status)
+     Join chave: route_info.lh_trip_number → t.tn
+     ────────────────────────────────────────────────────────────────────────── */
+
+  var EXT_ID = 'enhebdfbifnelgbpmfpoekbjfjokmnhf';
+
+  if(typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage){
+    alert('SPX Bridge: extensão não detectada.\n\nCertifique-se de que:\n1. A extensão SPX CE3 Bridge está instalada\n2. O dashboard está aberto no Chrome (não outro browser)\n3. A extensão está ativa (toggle azul em chrome://extensions/)');
+    return;
+  }
+
+  var badge = document.getElementById('badge-spx-bridge');
+  var lbl   = document.getElementById('lbl-spx-bridge');
+  if(lbl) lbl.textContent = 'SPX Bridge ⟳';
+
+  /* ── Fase 1: ob_tos via extensão ── */
+  chrome.runtime.sendMessage(EXT_ID, {type:'GET_DATA'}, function(resp){
+    if(chrome.runtime.lastError){
+      alert('SPX Bridge: não foi possível conectar à extensão.\n\nErro: '+chrome.runtime.lastError.message+'\n\nVerifique se a extensão está instalada e ativa.');
+      if(lbl) lbl.textContent = 'SPX Bridge';
+      return;
+    }
+    if(!resp||!resp.ok){
+      alert('SPX Bridge: extensão não respondeu corretamente.');
+      if(lbl) lbl.textContent = 'SPX Bridge';
+      return;
+    }
+
+    var tos = resp.ob_tos || [];
+    if(!tos.length){
+      alert('SPX Bridge: nenhuma TO capturada ainda.\n\nAbra o SPX, navegue pela tela de TOs e clique em Pesquisar.\nDepois volte aqui e clique em SPX Bridge novamente.');
+      if(lbl) lbl.textContent = 'SPX Bridge';
+      return;
+    }
+
+    /* Join ob_tos por lh_trip_number → t.tn */
+    var byTrip = {};
+    tos.forEach(function(to){
+      var lhTN = (to.lh_trip_number||'').trim();
+      if(!lhTN) return;
+      if(!byTrip[lhTN]) byTrip[lhTN] = [];
+      byTrip[lhTN].push(to);
+    });
+
+    var enrichedTOs = 0;
+    OUT.forEach(function(t){
+      var toList = byTrip[t.tn];
+      if(!toList||!toList.length) return;
+
+      /* Driver */
+      var withDriver = toList.find(function(x){return x.driver_name&&x.driver_name.trim();});
+      if(withDriver&&(!t.driver||t.driver==='--'))
+        t.driver = withDriver.driver_name.trim();
+
+      /* Destino */
+      var withDest = toList.find(function(x){return x.dest_station_name&&x.dest_station_name.trim();});
+      if(withDest&&(!t.dest||t.dest==='--'))
+        t.dest = withDest.dest_station_name.trim();
+
+      /* TOS_MAP */
+      var total    = toList.length;
+      var scuttles = toList.filter(function(x){return (x.packing_method||'').toLowerCase().indexOf('volumos')>=0;}).length;
+      var dest = t.dest || (withDest&&withDest.dest_station_name) || '';
+      if(dest){
+        var cap = obCapacity(t.tipo,t.perfil,t.tipologia);
+        TOS_MAP[dest]={
+          tos:total, cages:scuttles, orders:total-scuttles,
+          capacity:cap, hasStagingData:true,
+          occPct: cap>0?Math.round(scuttles/cap*100):0
+        };
+      }
+      enrichedTOs++;
+    });
+
+    var updStr = resp.ts ? new Date(resp.ts).toLocaleTimeString('pt-BR') : '--';
+
+    /* ── Fase 2: fila OB via POST /dock_management/queue/list ── */
+    if(lbl) lbl.textContent = 'SPX Bridge ⟳ (fila OB...)';
+    _fetchObQueue(function(queueItems, queueErr){
+      var enrichedQ = 0;
+      if(queueItems && queueItems.length){
+        /* Índice por lh_trip_number */
+        var qByTN = {};
+        queueItems.forEach(function(item){
+          var tn = (item.route_info&&item.route_info.lh_trip_number||'').trim();
+          if(!tn) return;
+          /* Mantém o registro mais recente (add_to_queue_time maior) para
+             evitar duplicatas do mesmo trip que entrou na fila mais de uma vez */
+          if(!qByTN[tn] || (item.add_to_queue_time||0) > (qByTN[tn].add_to_queue_time||0)){
+            qByTN[tn] = item;
+          }
+        });
+
+        OUT.forEach(function(t){
+          var q = qByTN[t.tn];
+          if(!q) return;
+
+          /* Transportadora (agency) — campo que não existe no CSV exportado */
+          if(q.agency && q.agency.trim() && (!t.transportadora||t.transportadora==='--'))
+            t.transportadora = q.agency.trim();
+
+          /* Driver — sobrescreve só se ainda vazio */
+          if(q.driver_name && q.driver_name.trim() && (!t.driver||t.driver==='--'))
+            t.driver = q.driver_name.trim();
+
+          /* Placa */
+          if(q.vehicle_number && q.vehicle_number.trim() && (!t.plate||t.plate==='--'))
+            t.plate = q.vehicle_number.trim();
+
+          /* Número de posição na fila OB (ex: "OB1422") */
+          if(q.queue_number) t.queueOBNum = q.queue_number;
+
+          /* Status da fila: 1=Pendente 2=Atribuído 3=Ocupado 4=Encerrado 5=Em espera */
+          if(q.queue_status != null) t.queueStatus = q.queue_status;
+
+          /* Doca atribuída (assigned_dock_name) — só preenche se ainda sem doca */
+          if(q.assigned_dock_name && q.assigned_dock_name.trim()){
+            if(!t.docaOB||t.docaOB==='') t.docaOB = q.assigned_dock_name.trim();
+            /* Se queue_status=2 (Atribuído) e ainda sem docaAssigned, marca */
+            if(q.queue_status===2 && !t.docaAssigned){
+              t.docaAssigned = true;
+              if(q.add_to_queue_time)
+                t.docaAssignedTime = new Date(q.add_to_queue_time*1000);
+            }
+          }
+
+          /* Tempo de entrada na fila OB */
+          if(q.add_to_queue_time && !t.patioOBTime){
+            t.patioOBTime = new Date(q.add_to_queue_time*1000);
+            t.patioOB = true;
+            if(t.evolucao==='arrived'||t.evolucao==='assigned') t.evolucao='patioOB';
+          }
+
+          enrichedQ++;
+        });
+      }
+
+      /* Atualiza badge e label */
+      var tosStr = tos.length+' TOs';
+      var qStr   = queueItems ? queueItems.length+' na fila' : (queueErr||'fila N/A');
+      if(badge){badge.textContent=tosStr;badge.style.background='var(--grn)';badge.style.color='#fff';}
+      if(lbl) lbl.textContent = 'SPX Bridge ✓';
+      var nav=document.getElementById('nav-spx-bridge');
+      if(nav) nav.style.borderLeft='3px solid var(--grn)';
+
+      renderOut(); renderPred();
+
+      var msg = 'SPX Bridge v2\n'
+              + '── ob_tos ──\n'
+              + tos.length+' TOs | '+enrichedTOs+' trips enriquecidas\n'
+              + 'Captura: '+updStr+'\n\n'
+              + '── Fila OB ──\n';
+      if(queueErr){
+        msg += '⚠ '+queueErr+'\n(Dica: abra a aba Lista de Fila de Saída no SPX antes de importar)';
+      } else {
+        msg += (queueItems?queueItems.length:0)+' veículos | '+enrichedQ+' trips enriquecidas com transportadora/fila';
+      }
+      alert(msg);
+    });
+  });
+}
+
+function _fetchObQueue(callback){
+  /* Busca a fila OB ativa via POST /dock_management/queue/list.
+     Requer que o usuário esteja logado no SPX na mesma sessão do browser.
+     queue_status "1,2,3,5,4" = todos os status (Pendente/Atribuído/Ocupado/Em espera/Encerrado).
+     queue_type 2 = Outbound.
+     Faz paginação automática até trazer todos os registros. */
+  var URL_OB = 'https://spx.shopee.com.br/api/in-station/dock_management/queue/list';
+  var PAGE_SIZE = 500;
+  var allItems = [];
+
+  function fetchPage(pageno){
+    fetch(URL_OB, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({pageno:pageno, count:PAGE_SIZE, queue_type:2, queue_status:'1,2,3,5,4'})
+    })
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return r.json();
+    })
+    .then(function(data){
+      if(!data||data.retcode!==0){
+        throw new Error('retcode '+(data&&data.retcode!=null?data.retcode:'?'));
+      }
+      var list = (data.data&&data.data.list)||[];
+      allItems = allItems.concat(list);
+      var total = (data.data&&data.data.total)||0;
+      /* Se há mais páginas, busca a próxima */
+      if(allItems.length < total && list.length === PAGE_SIZE){
+        fetchPage(pageno+1);
+      } else {
+        callback(allItems, null);
+      }
+    })
+    .catch(function(err){
+      /* Falha silenciosa — retorna o que já tinha + mensagem de erro */
+      if(allItems.length>0){
+        callback(allItems, 'Paginação parcial ('+allItems.length+' itens): '+err.message);
+      } else {
+        callback(null, 'Erro ao buscar fila OB: '+err.message+'\nVerifique se está logado no SPX e tente novamente.');
+      }
+    });
+  }
+
+  fetchPage(1);
+}
 
 function applyPlannerEnrichment(){
   /* Re-aplica o Planner no IN e OUT apos qualquer import que traga novas trips.

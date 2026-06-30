@@ -4135,11 +4135,9 @@ function fetchStageOut(){
      Join com TOS_MAP/OUT: por station_name (t.dest) — mesmo nome usado nos trips OB.
      ─────────────────────────────────────────────────────────────────────────── */
 
-  /* O Google Sheets bloqueia fetch direto por CORS quando chamado de outro domínio.
-     Usamos o proxy público allorigins.win que faz o bypass de CORS.
-     A planilha precisa estar publicada na web (já está). */
+  /* CORS proxy — corsproxy.io faz bypass de CORS e retorna o conteúdo direto */
   var CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vReZ5bDLlXbiDurnAjvn5qapKa35zoSkEXeM2sLKX8hicQxqfPUJVJsmXpcl5fdo_DUZMgTg9GOVZGr/pub?gid=710407612&single=true&output=csv';
-  var URL = 'https://api.allorigins.win/get?url='+encodeURIComponent(CSV_URL);
+  var URL = 'https://corsproxy.io/?'+encodeURIComponent(CSV_URL);
 
   var lbl   = document.getElementById('lbl-stage-out');
   var badge = document.getElementById('badge-stage-out');
@@ -4149,11 +4147,10 @@ function fetchStageOut(){
   fetch(URL, {cache:'no-store'})
   .then(function(r){
     if(!r.ok) throw new Error('HTTP '+r.status);
-    return r.json(); /* allorigins retorna {contents: "csv string", status: {...}} */
+    return r.text(); /* corsproxy retorna o CSV direto */
   })
-  .then(function(json){
-    var csv = json && json.contents;
-    if(!csv) throw new Error('Resposta vazia do proxy');
+  .then(function(csv){
+    if(!csv||!csv.trim()) throw new Error('Resposta vazia do proxy');
     return csv;
   })
   .then(function(csv){
@@ -4242,7 +4239,7 @@ function fetchStageOut(){
   .catch(function(err){
     if(lbl) lbl.textContent = 'Stage Out';
     if(badge){badge.textContent='erro';badge.style.background='var(--red)';badge.style.color='#fff';}
-    alert('Stage Out: erro ao buscar dados.\n\n'+err.message+'\n\nPossíveis causas:\n1. Sem conexão com a internet\n2. O proxy allorigins.win está fora do ar (tente novamente em instantes)\n3. A planilha não está publicada na web');
+    alert('Stage Out: erro ao buscar dados.\n\n'+err.message+'\n\nPossíveis causas:\n1. Sem conexão com a internet\n2. O proxy corsproxy.io está instável (tente novamente)\n3. A planilha não está publicada na web');
   });
 }
 

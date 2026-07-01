@@ -546,7 +546,7 @@ tr:hover td{background:var(--bg3);}
           <span id="lbl-spx-bridge">SPX Bridge</span>
           <span class="sb-badge" id="badge-spx-bridge">--</span>
         </div>
-        <div class="sb-item" id="nav-stage-out" onclick="fetchStageOut()" style="cursor:pointer;">
+        <div class="sb-item" id="nav-stage-out" onclick="document.getElementById('fi-stage-out').click()" style="cursor:pointer;">
           <span class="ico">&#8681;</span>
           <span id="lbl-stage-out">Stage Out</span>
           <span class="sb-badge" id="badge-stage-out">--</span>
@@ -563,6 +563,7 @@ tr:hover td{background:var(--bg3);}
 <input type="file" id="fi-queue" accept=".csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 <input type="file" id="fi-tos"   accept=".csv,.zip" multiple style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 <input type="file" id="fi-planner" accept=".csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
+<input type="file" id="fi-stage-out" accept=".csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 
 <!-- MAIN -->
 <div class="main">
@@ -1097,6 +1098,9 @@ document.getElementById('fi-planner').addEventListener('change',function(e){
 });
 document.getElementById('fi-tos').addEventListener('change',function(e){
   var files=e.target.files;if(files&&files.length)loadFileTos(files);e.target.value='';
+});
+document.getElementById('fi-stage-out').addEventListener('change',function(e){
+  var f=e.target.files&&e.target.files[0];if(f)loadFileStageOut(f);e.target.value='';
 });
 document.addEventListener('dragover',function(e){
   if(e.dataTransfer&&e.dataTransfer.types){for(var i=0;i<e.dataTransfer.types.length;i++){if(e.dataTransfer.types[i]==='Files'){e.preventDefault();break;}}}
@@ -4121,10 +4125,12 @@ function _fetchObQueue(callback){
 }
 
 function fetchStageOut(){
-  /* ── Stage Out via Google Sheets (Opção B — CSV publicado) ────────────────
-     Planilha: PLANNER_LH_SOC-CE3, aba Stage Out
-     Atualização automática via IMPORTRANGE — dados frescos sempre que o Sheets atualiza.
-     URL de publicação: export?format=csv&gid=710407612
+  /* Delegado ao input file — este stub não é chamado diretamente */
+}
+
+function loadFileStageOut(f){
+  /* ── Stage Out via CSV local ───────────────────────────────────────────────
+     Fonte: PLANNER_LH_SOC-CE3 → Arquivo → Fazer download → CSV
      Estrutura (linhas 6–38, colunas indexadas a partir de 0):
        col 1  = código destino (ex: SOC-GO2, HUB-LCE-01, XPT-LCE-94)
        col 2  = station_name completo (ex: LM Hub_CE_Fortaleza_Cajazeiras)
@@ -4132,115 +4138,97 @@ function fetchStageOut(){
        col 8  = sacas  (consolidado)
        col 9  = pacotes (consolidado)
        col 19 = ADO mínimo
-     Join com TOS_MAP/OUT: por station_name (t.dest) — mesmo nome usado nos trips OB.
+     Join com TOS_MAP/OUT: por station_name (t.dest).
      ─────────────────────────────────────────────────────────────────────────── */
-
-  /* CORS proxy — corsproxy.io faz bypass de CORS e retorna o conteúdo direto */
-  var CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vReZ5bDLlXbiDurnAjvn5qapKa35zoSkEXeM2sLKX8hicQxqfPUJVJsmXpcl5fdo_DUZMgTg9GOVZGr/pub?gid=710407612&single=true&output=csv';
-  var URL = 'https://corsproxy.io/?'+encodeURIComponent(CSV_URL);
-
   var lbl   = document.getElementById('lbl-stage-out');
   var badge = document.getElementById('badge-stage-out');
   var nav   = document.getElementById('nav-stage-out');
   if(lbl) lbl.textContent = 'Stage Out ⟳';
 
-  fetch(URL, {cache:'no-store'})
-  .then(function(r){
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    return r.text(); /* corsproxy retorna o CSV direto */
-  })
-  .then(function(csv){
-    if(!csv||!csv.trim()) throw new Error('Resposta vazia do proxy');
-    return csv;
-  })
-  .then(function(csv){
-    /* Parser CSV mínimo — trata vírgulas dentro de aspas */
-    function parseCSVLine(line){
-      var result=[],cur='',inQ=false;
-      for(var i=0;i<line.length;i++){
-        var c=line[i];
-        if(c==='"'){inQ=!inQ;}
-        else if(c===','&&!inQ){result.push(cur.trim());cur='';}
-        else{cur+=c;}
-      }
-      result.push(cur.trim());
-      return result;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      parseStageOutCSV(ev.target.result);
+    }catch(e){
+      if(lbl) lbl.textContent = 'Stage Out';
+      if(badge){badge.textContent='erro';badge.style.background='var(--red)';badge.style.color='#fff';}
+      alert('Stage Out: erro ao processar o CSV.\n\n'+e.message);
     }
+  };
+  reader.readAsText(f, 'UTF-8');
+}
 
-    var lines = csv.split('\n');
-    /* Linha 2 (índice 1) contém "Última Atualização: DD/MM/YYYY HH:MM:SS" */
-    var tsStr = '';
-    if(lines[1]){
-      var tsParts = parseCSVLine(lines[1]);
-      /* col 3 tem o timestamp (ex: "30/06/2026 15:36:45") */
-      tsStr = (tsParts[3]||'').replace(/^"|"$/g,'').trim();
+function parseStageOutCSV(csv){
+  var lbl   = document.getElementById('lbl-stage-out');
+  var badge = document.getElementById('badge-stage-out');
+  var nav   = document.getElementById('nav-stage-out');
+
+  /* Parser CSV mínimo — trata vírgulas dentro de aspas */
+  function parseCSVLine(line){
+    var result=[],cur='',inQ=false;
+    for(var i=0;i<line.length;i++){
+      var c=line[i];
+      if(c==='"'){inQ=!inQ;}
+      else if(c===','&&!inQ){result.push(cur.trim());cur='';}
+      else{cur+=c;}
     }
+    result.push(cur.trim());
+    return result;
+  }
 
-    var newMap = {};
-    var counted = 0;
+  var lines = csv.split('\n');
 
-    /* Dados começam na linha 6 (índice 5) até a linha com "TOTAL GERAL" */
-    for(var i=5;i<lines.length;i++){
-      var row = parseCSVLine(lines[i]);
-      /* Col 1 = código, col 2 = station_name, col 7 = pallets, col 8 = sacas, col 9 = pacotes, col 19 = ADO min */
-      var codigo  = (row[1]||'').replace(/^"|"$/g,'').trim();
-      var stName  = (row[2]||'').replace(/^"|"$/g,'').trim();
-      var pallets = parseInt((row[7]||'0').replace(/\./g,'').replace(/[^0-9]/g,''),10)||0;
-      var sacas   = parseInt((row[8]||'0').replace(/\./g,'').replace(/[^0-9]/g,''),10)||0;
-      var pacotes = parseInt((row[9]||'0').replace(/\./g,'').replace(/[^0-9]/g,'').replace(',',''),10)||0;
-      var adoMin  = parseInt((row[19]||'0').replace(/\./g,'').replace(/[^0-9]/g,''),10)||0;
+  /* Linha 2 (índice 1) contém "Última Atualização: DD/MM/YYYY HH:MM:SS" */
+  var tsStr = '';
+  if(lines[1]){
+    var tsParts = parseCSVLine(lines[1]);
+    tsStr = (tsParts[3]||'').replace(/^"|"$/g,'').trim();
+  }
 
-      /* Para quando chega no TOTAL GERAL */
-      if(codigo.indexOf('TOTAL')>=0||codigo.indexOf('Real Receiver')>=0||
-         codigo.indexOf('Correios')>=0||codigo.indexOf('J&T')>=0) continue;
-      if(!stName||!codigo) continue;
+  var newMap = {};
+  var counted = 0;
 
-      newMap[stName] = {
-        codigo:  codigo,
-        pallets: pallets,
-        sacas:   sacas,
-        pacotes: pacotes,
-        ado_min: adoMin,
-        ts:      tsStr
-      };
+  /* Dados começam na linha 6 (índice 5) */
+  for(var i=5;i<lines.length;i++){
+    var row = parseCSVLine(lines[i]);
+    var codigo  = (row[1]||'').replace(/^"|"$/g,'').trim();
+    var stName  = (row[2]||'').replace(/^"|"$/g,'').trim();
+    var pallets = parseInt((row[7]||'0').replace(/\./g,'').replace(/[^0-9]/g,''),10)||0;
+    var sacas   = parseInt((row[8]||'0').replace(/\./g,'').replace(/[^0-9]/g,''),10)||0;
+    var pacotes = parseInt((row[9]||'0').replace(/\./g,'').replace(/[^0-9]/g,''),10)||0;
+    var adoMin  = parseInt((row[19]||'0').replace(/\./g,'').replace(/[^0-9]/g,''),10)||0;
 
-      /* Também indexa por código curto (ex: "HUB-LCE-01") para lookup alternativo */
-      newMap[codigo] = newMap[stName];
-      counted++;
-    }
+    if(codigo.indexOf('TOTAL')>=0||codigo.indexOf('Real Receiver')>=0||
+       codigo.indexOf('Correios')>=0||codigo.indexOf('J&T')>=0) continue;
+    if(!stName||!codigo) continue;
 
-    STAGE_OUT_MAP = newMap;
+    newMap[stName] = {codigo:codigo,pallets:pallets,sacas:sacas,pacotes:pacotes,ado_min:adoMin,ts:tsStr};
+    newMap[codigo] = newMap[stName]; /* índice alternativo pelo código curto */
+    counted++;
+  }
 
-    /* Faz merge no TOS_MAP — enriquece com pacotes reais do Stage Out */
-    var enriched = 0;
-    Object.keys(STAGE_OUT_MAP).forEach(function(key){
-      /* Evita duplicar pelo código curto — só processa pelo station_name (contém underscore) */
-      if(key.indexOf('_')<0) return;
-      var s = STAGE_OUT_MAP[key];
-      if(!TOS_MAP[key]) TOS_MAP[key]={tos:0,orders:0,cages:0,capacity:0,occPct:0,hasStagingData:false};
-      /* Atualiza com dados reais do Stage Out (sobrescreve TOS importados manualmente) */
-      TOS_MAP[key].tos     = s.pallets + s.sacas;
-      TOS_MAP[key].cages   = s.pallets;
-      TOS_MAP[key].orders  = s.pacotes;
-      TOS_MAP[key].ado_min = s.ado_min;
-      TOS_MAP[key].hasStagingData = true;
-      enriched++;
-    });
+  STAGE_OUT_MAP = newMap;
 
-    /* Atualiza badge e label */
-    var tsLabel = tsStr || '--';
-    if(badge){badge.textContent=counted+' dest';badge.style.background='var(--blu)';badge.style.color='#fff';}
-    if(lbl) lbl.textContent = 'Stage Out ✓';
-    if(nav) nav.style.borderLeft = '3px solid var(--blu)';
-
-    renderOut(); renderPred();
-    alert('Stage Out\n'+counted+' destinos carregados | '+enriched+' no TOS_MAP\nÚltima atualização do Sheets: '+tsLabel);
-  })
-  .catch(function(err){
-    if(lbl) lbl.textContent = 'Stage Out';
-    if(badge){badge.textContent='erro';badge.style.background='var(--red)';badge.style.color='#fff';}
-    alert('Stage Out: erro ao buscar dados.\n\n'+err.message+'\n\nPossíveis causas:\n1. Sem conexão com a internet\n2. O proxy corsproxy.io está instável (tente novamente)\n3. A planilha não está publicada na web');
+  /* Merge no TOS_MAP com dados reais do Stage Out */
+  var enriched = 0;
+  Object.keys(STAGE_OUT_MAP).forEach(function(key){
+    if(key.indexOf('_')<0) return; /* só station_name (tem underscore) */
+    var s = STAGE_OUT_MAP[key];
+    if(!TOS_MAP[key]) TOS_MAP[key]={tos:0,orders:0,cages:0,capacity:0,occPct:0,hasStagingData:false};
+    TOS_MAP[key].tos     = s.pallets + s.sacas;
+    TOS_MAP[key].cages   = s.pallets;
+    TOS_MAP[key].orders  = s.pacotes;
+    TOS_MAP[key].ado_min = s.ado_min;
+    TOS_MAP[key].hasStagingData = true;
+    enriched++;
   });
+
+  if(badge){badge.textContent=counted+' dest';badge.style.background='var(--blu)';badge.style.color='#fff';}
+  if(lbl) lbl.textContent = 'Stage Out ✓';
+  if(nav) nav.style.borderLeft = '3px solid var(--blu)';
+
+  renderOut(); renderPred();
+  alert('Stage Out\n'+counted+' destinos carregados | '+enriched+' no TOS_MAP'+(tsStr?'\nAtualizado em: '+tsStr:''));
 }
 
 function applyPlannerEnrichment(){

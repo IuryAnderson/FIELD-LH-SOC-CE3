@@ -4059,7 +4059,7 @@ function importSPXBridge(){
       var nav=document.getElementById('nav-spx-bridge');
       if(nav) nav.style.borderLeft='3px solid var(--grn)';
 
-      renderOut(); renderPred();
+      renderOut(); renderObPred();
 
       var msg = 'SPX Bridge v2\n'
               + '── ob_tos ──\n'
@@ -4227,7 +4227,7 @@ function parseStageOutCSV(csv){
   if(lbl) lbl.textContent = 'Stage Out ✓';
   if(nav) nav.style.borderLeft = '3px solid var(--blu)';
 
-  renderOut(); renderPred();
+  renderOut(); renderObPred();
   alert('Stage Out\n'+counted+' destinos carregados | '+enriched+' no TOS_MAP'+(tsStr?'\nAtualizado em: '+tsStr:''));
 }
 

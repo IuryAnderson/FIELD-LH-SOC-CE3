@@ -814,8 +814,17 @@ function compute(){
     var pct       = total > 0 ? (embaladas / total * 100) : 100;
     var status    = pct >= 100 ? 'ok' : pct >= 99 ? 'warn' : 'crit';
 
+    /* Turno calculado só por minuto-do-dia do ETA Origem (ignora a data
+       por completo) — mesma lógica usada na Análise Inbound, garante que
+       o T3 cobre a virada da meia-noite corretamente (ex: 23:50 e 04:30
+       de dois dias seguidos caem ambos em T3, sem tratamento especial de
+       data — T3 é sempre o "else").
+       T1: 05:25–13:45 (325–825min) · T2: 13:46–22:05 (826–1325min) · T3: resto */
     var turno='--';
-    if(eta){var hm=eta.getHours()*60+eta.getMinutes();turno=hm>=325&&hm<=824?'T1':hm>=825&&hm<=1319?'T2':'T3';}
+    if(eta){
+      var hm=eta.getHours()*60+eta.getMinutes();
+      turno = (hm>=325 && hm<=825) ? 'T1' : (hm>=826 && hm<=1325) ? 'T2' : 'T3';
+    }
 
     return {
       tn: tn,

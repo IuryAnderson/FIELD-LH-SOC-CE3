@@ -213,6 +213,7 @@ html, body {
 .chip.active-ok   { background: var(--grn-d); border-color: var(--grn); color: var(--grn); }
 .chip.active-warn { background: var(--amb-d); border-color: var(--amb); color: var(--amb); }
 .chip.active-crit { background: var(--red-d); border-color: var(--red); color: var(--red); }
+.chip.active-neu  { background: var(--ora-d); border-color: var(--ora); color: var(--ora); }
 .chip:hover { border-color: var(--text3); }
 
 /* ── TRIP TABLE ──────────────────────────────────────────────── */
@@ -249,6 +250,17 @@ html, body {
 .trip-table tbody tr.row-ok   { background: rgba(34,197,94,.04); }
 .trip-table tbody tr.row-warn { background: rgba(245,158,11,.04); }
 .trip-table tbody tr.row-crit { background: rgba(239,68,68,.04); }
+.trip-table tbody tr.row-ok:hover   { box-shadow: inset 3px 0 0 var(--grn), 0 0 24px rgba(34,197,94,.10); }
+.trip-table tbody tr.row-warn:hover { box-shadow: inset 3px 0 0 var(--amb), 0 0 24px rgba(245,158,11,.10); }
+.trip-table tbody tr.row-crit:hover { box-shadow: inset 3px 0 0 var(--red), 0 0 24px rgba(239,68,68,.10); }
+.trip-table tbody tr:hover .donut-pct { filter: brightness(1.3); }
+.trip-table tbody tr:hover .badge-crit { box-shadow: 0 0 14px rgba(239,68,68,.55); }
+.trip-table tbody tr:hover .badge-warn { box-shadow: 0 0 14px rgba(245,158,11,.55); }
+.trip-table tbody tr:hover .badge-ok   { box-shadow: 0 0 14px rgba(34,197,94,.55); }
+.trip-table th.sortable { cursor: pointer; user-select: none; }
+.trip-table th.sortable:hover { color: var(--text); }
+.sort-arrow { opacity: .5; margin-left: 3px; font-size: 9px; }
+.sort-arrow.active { opacity: 1; color: var(--ora); }
 
 .trip-table td {
   padding: 11px 14px;
@@ -343,6 +355,34 @@ html, body {
   50%      { opacity: .5; }
 }
 
+/* ── FAROL: alerta antes de liberar o veículo ───────────────────
+   Trip com corte a ≤15min E ainda com left-over > 0 E que ainda não
+   partiu. Diferente do countdown genérico (que já pisca abaixo de 20min
+   independente de ter left-over) — esse é especificamente "risco real de
+   deixar carga pra trás se o veículo sair agora". */
+.farol-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--red-d);
+  color: var(--red);
+  border: 1px solid rgba(239,68,68,.4);
+  animation: pulse-red 1.2s infinite;
+  white-space: nowrap;
+}
+.trip-table tbody tr.row-farol {
+  animation: pulse-farol-row 1.6s infinite;
+}
+@keyframes pulse-farol-row {
+  0%,100% { background: rgba(239,68,68,.05); box-shadow: inset 3px 0 0 var(--red); }
+  50%     { background: rgba(239,68,68,.14); box-shadow: inset 3px 0 0 var(--red); }
+}
+
 /* ── EMPTY STATE ─────────────────────────────────────────────── */
 .empty {
   text-align: center;
@@ -376,7 +416,7 @@ html, body {
 /* ── DONUT ───────────────────────────────────────────────────── */
 .donut-wrap {
   position: relative;
-  width: 64px; height: 64px;
+  width: 80px; height: 80px;
   flex-shrink: 0;
 }
 .donut-label {
@@ -389,23 +429,31 @@ html, body {
   font-weight: 700;
   pointer-events: none;
 }
-.donut-pct { font-size: 15px; letter-spacing: -.02em; }
-.pack-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: 4px;
-  padding: 2px 7px;
-  font-size: 10px;
-  font-weight: 600;
+.donut-pct { font-size: 22px; letter-spacing: -.02em; }
+.donut-pct small { font-size: 12px; font-weight: 600; margin-left: 1px; }
+.pack-frac {
   font-family: var(--mono);
-  margin: 2px 5px 2px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 5px;
+}
+.pack-frac span { color: var(--text3); font-weight: 400; }
+.pack-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  line-height: 1.7;
   white-space: nowrap;
 }
+.pack-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.pack-label { color: var(--text2); }
+.pack-qty { font-family: var(--mono); font-weight: 700; margin-left: 2px; }
 .prog-cell {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
 }
 .prog-detail {
   display: flex;
@@ -483,10 +531,10 @@ html, body {
     <div style="width:1px;height:24px;background:var(--line);"></div>
     <div style="display:flex;align-items:center;gap:6px;">
       <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Turno</span>
-      <div class="chip active-ok" id="ft-all" onclick="setTurno('all')">Todos</div>
-      <div class="chip" id="ft-t1" onclick="setTurno('T1')">T1</div>
-      <div class="chip" id="ft-t2" onclick="setTurno('T2')">T2</div>
-      <div class="chip" id="ft-t3" onclick="setTurno('T3')">T3</div>
+      <div class="chip active-neu" id="ft-all" onclick="toggleTurno('all')">Todos</div>
+      <div class="chip" id="ft-t1" onclick="toggleTurno('T1')">T1</div>
+      <div class="chip" id="ft-t2" onclick="toggleTurno('T2')">T2</div>
+      <div class="chip" id="ft-t3" onclick="toggleTurno('T3')">T3</div>
     </div>
     <div style="width:1px;height:24px;background:var(--line);"></div>
     <div style="display:flex;align-items:center;gap:6px;">
@@ -507,12 +555,12 @@ html, body {
   </div>
 
   <div class="section-header">
-    <div class="section-title">Detalhamento por Trip <span id="source-label" style="font-size:9px;color:var(--text3);font-weight:400;margin-left:8px;"></span></div>
+    <div class="section-title">Detalhamento por Trip <span id="source-label" style="font-size:9px;color:var(--text3);font-weight:400;margin-left:8px;"></span><span id="farol-count"></span></div>
     <div class="filter-bar">
-      <div class="chip active-ok" id="f-all" onclick="setFilter('all')">Todos</div>
-      <div class="chip" id="f-crit" onclick="setFilter('crit')">🔴 Crítico</div>
-      <div class="chip" id="f-warn" onclick="setFilter('warn')">🟡 Atenção</div>
-      <div class="chip" id="f-ok" onclick="setFilter('ok')">🟢 Meta</div>
+      <div class="chip active-ok" id="f-all" onclick="toggleStatus('all')">Todos</div>
+      <div class="chip" id="f-crit" onclick="toggleStatus('crit')">🔴 Crítico</div>
+      <div class="chip" id="f-warn" onclick="toggleStatus('warn')">🟡 Atenção</div>
+      <div class="chip" id="f-ok" onclick="toggleStatus('ok')">🟢 Meta</div>
     </div>
   </div>
 
@@ -528,28 +576,76 @@ html, body {
 <script>
 /* ── GLOBALS ──────────────────────────────────────────────────── */
 var TRIPS     = []; /* computed trip summaries */
-var FILTER='all';
-var F_TURNO='all';
-function setTurno(t){
-  F_TURNO=t;
-  ['all','T1','T2','T3'].forEach(function(k){
-    var el=document.getElementById('ft-'+k.toLowerCase());
-    if(el)el.className='chip'+(k===t?' active-ok':'');
+/* Filtros multi-seleção: dentro de cada grupo é OR (Crítico OU Atenção),
+   entre grupos é AND (Status E Turno E Destino) — cumulativos entre si */
+var F_STATUS = new Set(['crit','warn','ok']);
+var F_TURNO  = new Set(['T1','T2','T3']);
+var SORT_COL = 'status';
+var SORT_DIR = 1;
+
+function toggleStatus(s){
+  if(s === 'all'){ F_STATUS = new Set(['crit','warn','ok']); }
+  else { F_STATUS.has(s) ? F_STATUS.delete(s) : F_STATUS.add(s); }
+  ['all','crit','warn','ok'].forEach(function(k){
+    var el = document.getElementById('f-'+k);
+    if(!el) return;
+    var active = k==='all' ? F_STATUS.size===3 : F_STATUS.has(k);
+    el.className = 'chip'+(active?' active-'+(k==='all'?'ok':k):'');
   });
   updateKPIs();renderTable();
 }
+function toggleTurno(t){
+  if(t === 'all'){ F_TURNO = new Set(['T1','T2','T3']); }
+  else { F_TURNO.has(t) ? F_TURNO.delete(t) : F_TURNO.add(t); }
+  ['all','T1','T2','T3'].forEach(function(k){
+    var el = document.getElementById('ft-'+k.toLowerCase());
+    if(!el) return;
+    var active = k==='all' ? F_TURNO.size===3 : F_TURNO.has(k);
+    el.className = 'chip'+(active?' active-neu':'');
+  });
+  updateKPIs();renderTable();
+}
+function sortableTh(label, col, style){
+  var arrow = SORT_COL===col ? (SORT_DIR===1?'▲':'▼') : '↕';
+  var cls   = SORT_COL===col ? ' active' : '';
+  return '<th class="sortable" style="'+(style||'')+'" onclick="setSort(\''+col+'\')">'+
+    label+'<span class="sort-arrow'+cls+'">'+arrow+'</span></th>';
+}
+
 function applyFilters(){updateKPIs();renderTable();}
+
+function setSort(col){
+  if(SORT_COL === col){ SORT_DIR *= -1; } else { SORT_COL = col; SORT_DIR = 1; }
+  renderTable();
+}
+function sortTrips(list){
+  var statusOrder = {crit:0,warn:1,ok:2};
+  return list.slice().sort(function(a,b){
+    var av, bv;
+    if(SORT_COL==='status'){ av=statusOrder[a.status]; bv=statusOrder[b.status]; }
+    else { av=a[SORT_COL]; bv=b[SORT_COL]; }
+    if(av instanceof Date) { av = av?av.getTime():-Infinity; bv = bv?bv.getTime():-Infinity; }
+    if(typeof av === 'string'){ av=(av||'').toLowerCase(); bv=(bv||'').toLowerCase(); }
+    if(av==null) av = -Infinity;
+    if(bv==null) bv = -Infinity;
+    if(av<bv) return -1*SORT_DIR;
+    if(av>bv) return 1*SORT_DIR;
+    return a.pct-b.pct; /* desempate: sempre pela % */
+  });
+}
+
 function filteredTrips(){
   var dF=document.getElementById('f-date-from')?document.getElementById('f-date-from').value:'';
   var dT=document.getElementById('f-date-to')?document.getElementById('f-date-to').value:'';
   var dV=document.getElementById('f-dest')?document.getElementById('f-dest').value:'';
-  return TRIPS.filter(function(t){
-    if(FILTER!=='all'&&t.status!==FILTER)return false;
-    if(F_TURNO!=='all'&&t.turno!==F_TURNO)return false;
+  var list = TRIPS.filter(function(t){
+    if(!F_STATUS.has(t.status)) return false;
+    if(t.turno!=='--' && !F_TURNO.has(t.turno)) return false;
     if(dV&&t.dest!==dV)return false;
     if(t.eta){var ed=t.eta.toISOString().slice(0,10);if(dF&&ed<dF)return false;if(dT&&ed>dT)return false;}
     return true;
   });
+  return sortTrips(list);
 }
 
 /* ── CLOCK ───────────────────────────────────────────────────── */
@@ -733,12 +829,8 @@ function compute(){
     };
   });
 
-  /* Sort: críticos primeiro, depois % crescente */
-  TRIPS.sort(function(a,b){
-    var ord = {crit:0,warn:1,ok:2};
-    if(ord[a.status] !== ord[b.status]) return ord[a.status]-ord[b.status];
-    return a.pct - b.pct;
-  });
+  /* Ordenação fica a cargo de filteredTrips()/sortTrips(), que já roda a
+     cada render — permite o usuário clicar nas colunas pra reordenar. */
 
   /* Popula destinos */
   var dSel=document.getElementById('f-dest');
@@ -818,6 +910,18 @@ function statusBadge(status){
   return '<span class="badge badge-crit"><span class="dot"></span>CRÍTICO</span>';
 }
 
+function isFarolActive(t){
+  /* Corte a ≤15min, ainda não partiu, e tem left-over real */
+  if(!t.corte || t.partiu || t.leftOver<=0) return false;
+  var diffMin = (t.corte - new Date())/60000;
+  return diffMin >= 0 && diffMin <= 15;
+}
+
+function farolBadge(t){
+  var diffMin = Math.max(0, Math.round((t.corte - new Date())/60000));
+  return '<div class="farol-badge">🚨 Farol: '+diffMin+'min p/ corte, '+t.leftOver+' TOs de fora</div>';
+}
+
 function shortDest(d){
   return d.replace('LM Hub_CE_','LM CE ')
           .replace('LM Hub_CE ','LM CE ')
@@ -842,28 +946,18 @@ function shortDriverName(name){
 }
 
 /* ── DONUT CELL ──────────────────────────────────────────────── */
-function breakdownChips(items, color){
-  if(!items.length){
-    return '<span class="pack-chip" style="background:var(--grn-d);color:var(--grn);border:1px solid rgba(34,197,94,.25);">✓ tudo carregado</span>';
-  }
-  return items.map(function(it){
-    return '<span class="pack-chip" style="background:'+color+'22;color:'+color+';border:1px solid '+color+'44;">'+
-      it.qty+' '+it.label+
-    '</span>';
-  }).join('');
-}
-
 function donutCell(t){
-  var pct     = t.pct;
-  var pctDisp = Math.min(pct, 100);
-  var color   = progColor(pct);
-  var r=24, cx=32, cy=32, sw=6;
-  var circ    = 2*Math.PI*r;
-  var dash    = circ*(pctDisp/100);
-  var gap     = circ-dash;
-  var pctFmt  = pct>=100?'100':pct.toFixed(1);
+  var pct      = t.pct;
+  var pctDisp  = Math.min(pct, 100);
+  var color    = progColor(pct);
+  var r=33, cx=40, cy=40, sw=7;
+  var circ     = 2*Math.PI*r;
+  var dash     = circ*(pctDisp/100);
+  var gap      = circ-dash;
+  var pctInt   = Math.round(pct);
+  var pctExact = (pct>=100?'100':pct.toFixed(1))+'%';
 
-  var svg = '<svg width="64" height="64" viewBox="0 0 64 64">'+
+  var svg = '<svg width="80" height="80" viewBox="0 0 80 80">'+
     '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--bg4)" stroke-width="'+sw+'"/>'+
     '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+sw+'"'+
       ' stroke-dasharray="'+dash.toFixed(2)+' '+gap.toFixed(2)+'"'+
@@ -873,38 +967,33 @@ function donutCell(t){
       ' style="transition:stroke-dasharray .8s ease;filter:drop-shadow(0 0 5px '+color+'88)"/>'+
     '</svg>';
 
-  var bar = '<div class="prog-track" style="height:7px;">'+
-    '<div class="prog-fill" style="width:'+pctDisp+'%;background:linear-gradient(90deg,'+color+'99,'+color+');"></div>'+
-    '</div>';
+  var breakdownRows = t.breakdown.length
+    ? t.breakdown.map(function(it){
+        return '<div class="pack-row">'+
+          '<span class="pack-dot" style="background:'+color+'"></span>'+
+          '<span class="pack-label">'+it.label+'</span>'+
+          '<span class="pack-qty" style="color:'+color+'">'+it.qty+'</span>'+
+        '</div>';
+      }).join('')
+    : '<div class="pack-row">'+
+        '<span class="pack-dot" style="background:var(--grn)"></span>'+
+        '<span class="pack-label" style="color:var(--grn)">Tudo carregado ✓</span>'+
+      '</div>';
 
   return '<div class="prog-cell">'+
-    '<div class="donut-wrap">'+svg+
+    '<div class="donut-wrap" title="'+pctExact+'">'+svg+
       '<div class="donut-label">'+
-        '<span class="donut-pct" style="color:'+color+'">'+pctFmt+'%</span>'+
+        '<span class="donut-pct" style="color:'+color+'">'+pctInt+'<small>%</small></span>'+
       '</div>'+
     '</div>'+
     '<div class="prog-detail">'+
-      '<div class="prog-bar-row">'+bar+
-        '<span style="font-size:12px;color:var(--text);font-family:var(--mono);font-weight:700;white-space:nowrap;">'+
-          t.embaladas.toLocaleString('pt-BR')+'/'+t.total.toLocaleString('pt-BR')+
-        '</span>'+
-      '</div>'+
-      '<div style="margin-top:6px;">'+breakdownChips(t.breakdown, color)+'</div>'+
+      '<div class="pack-frac">'+t.embaladas.toLocaleString('pt-BR')+'<span>/</span>'+t.total.toLocaleString('pt-BR')+' TOs</div>'+
+      breakdownRows+
     '</div>'+
   '</div>';
 }
 
 /* ── RENDER TABLE ────────────────────────────────────────────── */
-function setFilter(f){
-  FILTER = f;
-  ['all','ok','warn','crit'].forEach(function(k){
-    var el = document.getElementById('f-'+k);
-    if(!el) return;
-    el.className = 'chip'+(k===f?' active-'+(k==='all'?'ok':k):'');
-  });
-  renderTable();
-}
-
 function renderTable(){
   /* Atualiza fonte de dados */
   var srcEl = document.getElementById('source-label');
@@ -913,6 +1002,12 @@ function renderTable(){
       (BRIDGE_MONITOR.length ? ' de '+BRIDGE_MONITOR.length+' na lista' : '')+')'
     : '⚠ Bridge não conectado';
   var vis=filteredTrips();
+
+  var farolCount = vis.filter(isFarolActive).length;
+  var fcEl = document.getElementById('farol-count');
+  if(fcEl) fcEl.innerHTML = farolCount>0
+    ? ' <span style="font-size:10px;font-weight:700;color:var(--red);margin-left:10px;animation:pulse-red 1.2s infinite;">🚨 '+farolCount+' prestes a sair com left-over</span>'
+    : '';
 
   var wrap = document.getElementById('table-wrap');
   if(!vis.length){
@@ -931,13 +1026,14 @@ function renderTable(){
 
     var etaStr = t.eta ? t.eta.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--';
     var stdStr = t.std ? t.std.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--';
+    var farolOn = isFarolActive(t);
 
-    return '<tr class="row-'+t.status+'">'+
+    return '<tr class="row-'+t.status+(farolOn?' row-farol':'')+'">'+
       '<td class="tn">'+t.tn+'</td>'+
       '<td><span class="dest-label">'+shortDest(t.dest)+'</span></td>'+
       '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t.driver+'">'+shortDriverName(t.driver)+'</td>'+
       '<td style="font-size:11px;">'+t.tipologia+'</td>'+
-      '<td>'+statusBadge(t.status)+'</td>'+
+      '<td>'+statusBadge(t.status)+(farolOn?farolBadge(t):'')+'</td>'+
       '<td>'+donutCell(t)+'</td>'+
       '<td style="text-align:center;">'+loStr+'</td>'+
       '<td style="text-align:center;font-family:var(--mono);font-size:11px;">'+t.total+'</td>'+
@@ -956,16 +1052,16 @@ function renderTable(){
   wrap.innerHTML =
     '<table class="trip-table">'+
     '<thead><tr>'+
-      '<th>TRIP</th>'+
-      '<th>DESTINO</th>'+
-      '<th>DRIVER</th>'+
-      '<th>TIPOLOGIA</th>'+
-      '<th>STATUS</th>'+
-      '<th style="min-width:260px;">LEFT-OVER %</th>'+
-      '<th style="text-align:center;">PERDIDAS</th>'+
-      '<th style="text-align:center;">TOTAL TOs</th>'+
-      '<th style="text-align:center;">EMBALADAS</th>'+
-      '<th>ETA ORIGEM / CPT (−2h)</th>'+
+      sortableTh('TRIP','tn')+
+      sortableTh('DESTINO','dest')+
+      sortableTh('DRIVER','driver')+
+      sortableTh('TIPOLOGIA','tipologia')+
+      sortableTh('STATUS','status')+
+      sortableTh('LEFT-OVER %','pct','min-width:260px;')+
+      sortableTh('PERDIDAS','leftOver','text-align:center;')+
+      sortableTh('TOTAL TOs','total','text-align:center;')+
+      sortableTh('EMBALADAS','embaladas','text-align:center;')+
+      sortableTh('ETA ORIGEM / CPT (−2h)','eta')+
     '</tr></thead>'+
     '<tbody>'+rows.join('')+'</tbody>'+
     '</table>';

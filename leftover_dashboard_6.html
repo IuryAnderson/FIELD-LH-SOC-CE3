@@ -426,10 +426,6 @@ html, body {
   </div>
   <div class="header-right">
     <div class="clock" id="clock">--:--:--</div>
-    <label class="btn-import" id="btn-import-ob" style="cursor:pointer;background:var(--bg3);border:1px solid var(--line);">
-      ↑ Importar Outbound CSV
-      <input type="file" id="fi-ob" accept=".csv" style="display:none">
-    </label>
     <button class="btn-import" id="btn-bridge" onclick="importBridge()"
       style="background:var(--bg3);border:1px solid rgba(139,92,246,.4);color:#a78bfa;">
       ⚡ SPX Bridge
@@ -516,14 +512,13 @@ html, body {
     <div class="empty">
       <div class="empty-icon">📦</div>
       <div class="empty-title">Nenhum dado carregado</div>
-      <div class="empty-sub">Conecte o ⚡ SPX Bridge (status por TO em tempo real) e importe o CSV Outbound (lh_trip_br_cost) para ETA/destino/driver.</div>
+      <div class="empty-sub">Conecte o ⚡ SPX Bridge e clique nas trips que quiser acompanhar na tela Outbound Monitoring do SPX.</div>
     </div>
   </div>
 </div>
 
 <script>
 /* ── GLOBALS ──────────────────────────────────────────────────── */
-var OB_DATA   = []; /* lh_trip_br_cost OB rows */
 var TRIPS     = []; /* computed trip summaries */
 var FILTER='all';
 var F_TURNO='all';
@@ -611,28 +606,14 @@ function parseDT(str){
   return null;
 }
 
-/* ── FILE IMPORTS ────────────────────────────────────────────── */
-document.getElementById('fi-ob').addEventListener('change', function(e){
-  var f = e.target.files[0]; if(!f) return;
-  var r = new FileReader();
-  r.onload = function(ev){
-    OB_DATA = parseCSV(ev.target.result);
-    console.log('[LO] OB carregado:', OB_DATA.length, 'linhas');
-    if(!OB_DATA.length){
-      alert('CSV Outbound não processado. Verifique se o arquivo é válido.');
-      return;
-    }
-    compute();
-    console.log('[LO] Trips OB processadas:', TRIPS.length);
-  };
-  r.readAsText(f, 'utf-8');
-  e.target.value = '';
-});
-
 /* ── SPX BRIDGE ──────────────────────────────────────────────── */
-var BRIDGE_TOS     = []; /* TOs capturadas pelo SPX Bridge (ob_tos) */
-var BRIDGE_MONITOR = []; /* Trips capturadas via tela Outbound Monitoring (ob_monitor) —
-                             traz vehicle_type_name (tipologia real), sta, destination_name */
+var BRIDGE_TRIP_DETAIL = []; /* ob_trip_detail — fonte PRIMÁRIA do Left-Over.
+   Cada registro é o "Detalhe da Viagem" de 1 trip (clique na tela Outbound
+   Monitoring), já vem com loaded_to_quantity/pending_to_pack por trip —
+   sem precisar de join TO↔Trip. */
+var BRIDGE_MONITOR = []; /* ob_monitor — lista de todas as trips visíveis na
+   tela (não clicadas individualmente). Usado só como contador informativo
+   (quantas trips ainda faltam detalhar), não alimenta o cálculo. */
 
 function importBridge(){
   var EXT_ID = 'lnihdebpcnlfoikellnlkeebhphfahlp';
@@ -642,31 +623,32 @@ function importBridge(){
     return;
   }
   if(btn) btn.textContent='⚡ Carregando...';
-  chrome.runtime.sendMessage(EXT_ID,{type:'GET_DATA'},function(resp){
+  chrome.runtime.sendMessage(EXT_ID,{type:'GET_OB_TRIP_DETAIL'},function(resp){
     if(chrome.runtime.lastError){
       alert('Erro ao conectar à extensão: '+chrome.runtime.lastError.message);
       if(btn) btn.textContent='⚡ SPX Bridge';
       return;
     }
-    if(!resp||!resp.ok||!resp.ob_tos||!resp.ob_tos.length){
-      alert('SPX Bridge: nenhuma TO capturada. Abra o SPX, navegue pelas TOs e tente novamente.');
+    if(!resp||!resp.ok||!resp.ob_trip_detail||!resp.ob_trip_detail.length){
+      alert('SPX Bridge: nenhuma trip detalhada ainda. Na tela Outbound Monitoring '+
+        'do SPX, clique em cada trip que quiser acompanhar (abre o painel '+
+        '"Detalhe da Viagem" e captura os dados), depois tente de novo.');
       if(btn) btn.textContent='⚡ SPX Bridge';
       return;
     }
-    BRIDGE_TOS = resp.ob_tos;
+    BRIDGE_TRIP_DETAIL = resp.ob_trip_detail;
     var updStr = resp.ts ? new Date(resp.ts).toLocaleTimeString('pt-BR') : '--';
 
-    /* Busca também o ob_monitor (v1.4): tipologia real do veículo, ETA,
-       destino — enriquece TRIPS mas não bloqueia se vier vazio (basta a
-       tela Outbound Monitoring ainda não ter sido aberta nessa sessão) */
+    /* Busca também o ob_monitor — só informativo (quantas trips aparecem na
+       lista vs quantas já foram detalhadas), não entra no cálculo */
     chrome.runtime.sendMessage(EXT_ID,{type:'GET_OB_MONITOR'},function(resp2){
       BRIDGE_MONITOR = (resp2 && resp2.ok && resp2.ob_monitor) ? resp2.ob_monitor : [];
 
       var badge = document.getElementById('badge-bridge');
       if(badge){
         badge.style.display='';
-        badge.textContent = BRIDGE_TOS.length+' TOs live'+
-          (BRIDGE_MONITOR.length ? ' · '+BRIDGE_MONITOR.length+' trips' : '');
+        badge.textContent = BRIDGE_TRIP_DETAIL.length+' trips detalhadas'+
+          (BRIDGE_MONITOR.length ? ' · '+BRIDGE_MONITOR.length+' na lista' : '');
       }
       if(btn){
         btn.textContent='⚡ Bridge ✓';
@@ -674,101 +656,66 @@ function importBridge(){
         btn.style.color='var(--grn)';
       }
       compute();
-      console.log('[LO Bridge] '+BRIDGE_TOS.length+' TOs · '+BRIDGE_MONITOR.length+
-        ' trips (monitor) | última captura: '+updStr);
-      if(!BRIDGE_MONITOR.length) console.log('[LO Bridge] ob_monitor vazio — '+
-        'abra a tela Outbound Monitoring no SPX pra capturar tipologia/ETA.');
+      console.log('[LO Bridge] '+BRIDGE_TRIP_DETAIL.length+' trips detalhadas · '+
+        BRIDGE_MONITOR.length+' na lista | última captura: '+updStr);
     });
   });
 }
 
 /* ── COMPUTE ─────────────────────────────────────────────────── */
-/* Fonte única de status por-TO: SPX Bridge (captura ao vivo, com lh_trip_number
-   já resolvido pela própria tela do SPX). Não existe export CSV do SPX que
-   ligue TO Number a LH Trip Number — confirmado por análise de outbound_staging_area,
-   to_*.csv, QueueList e export_reception_order (04/07/2026). O CSV Outbound
-   (lh_trip_br_cost) segue servindo só de contexto: ETA, destino, driver. */
+/* Fonte única e primária: ob_trip_detail (SPX Bridge v1.5 — clique numa
+   trip na tela Outbound Monitoring). Cada registro já traz, por trip:
+   loaded_to_quantity (TOs carregadas) e pending_to_pack (string tipo
+   "8 NA,6 Saca,1 Saca Sorter,4 Scuttle,5 Volumoso" — TOs staged mas ainda
+   não carregadas). Não precisa de join TO↔Trip: o próprio endpoint já
+   entrega o par certo (carregado vs pendente) na mesma unidade (TOs).
+   Substitui de vez o modelo antigo (join por lh_trip_number via ob_tos),
+   que não fechava porque nenhum export/endpoint do SPX liga TO Number a
+   LH Trip Number individualmente — só esse endpoint de detalhe, por já
+   estar no contexto de uma trip específica. */
+
+function sumPackString(s){
+  /* "8 NA,6 Saca,1 Saca Sorter,4 Scuttle,5 Volumoso" → 24
+     Soma o número no início de cada segmento separado por vírgula. */
+  if(!s || typeof s !== 'string') return 0;
+  var total = 0;
+  s.split(',').forEach(function(part){
+    var m = part.trim().match(/^(\d+)/);
+    if(m) total += parseInt(m[1], 10);
+  });
+  return total;
+}
+
 function compute(){
-  if(!BRIDGE_TOS.length){ TRIPS = []; updateKPIs(); renderTable(); return; }
+  if(!BRIDGE_TRIP_DETAIL.length){ TRIPS = []; updateKPIs(); renderTable(); return; }
 
-  /* Mapa de ETA Origem por trip number (do lh_trip_br_cost OB) */
-  var etaMap = {}; /* tn → Date (ETA Origem = Schedule Arrival Time) */
-  var destMap = {}; /* tn → dest */
-  var driverMap = {};
-  var tipMap = {};
+  TRIPS = BRIDGE_TRIP_DETAIL.map(function(trip){
+    var tn = trip.trip_number || '';
 
-  OB_DATA.forEach(function(r){
-    var tn  = r['LH Trip Number'] || r['Trip Number'] || r['lh_trip_number'] || '';
-    var sta = r['Station Name']   || '';
-    if(!tn) return;
-    /* ETA Origem = Schedule Arrival Time na estação de origem */
-    var schedArr = parseDT(r['Schedule Arrival Time']);
-    if(schedArr && !etaMap[tn]) etaMap[tn] = schedArr;
-    /* Destino: próxima estação (Station Number > 1) */
-    if(sta && sta !== 'SoC_CE_Itaitinga' && !destMap[tn]) destMap[tn] = sta;
-    if(r['Driver'] && r['Driver'] !== '-' && !driverMap[tn]) driverMap[tn] = r['Driver'];
-    if(r['Vehicle Type'] && !tipMap[tn]) tipMap[tn] = r['Vehicle Type'];
-  });
+    /* ETA Origem = sta (Schedule Time of Arrival), mesma semântica que já
+       usávamos antes (arrival do veículo na origem pra carregar) */
+    var eta   = trip.sta ? new Date(trip.sta * 1000) : null;
+    var corte = eta ? new Date(eta.getTime() - 2*60*60*1000) : null; /* ETA - 2h */
 
-  /* Enriquece com ob_monitor (SPX Bridge v1.4 — tela Outbound Monitoring):
-     vehicle_type_name é a tipologia REAL do veículo (Carreta/Truck/Toco/3/4/
-     HR, inclusive variantes "- Expressa"), sta é o horário programado (unix)
-     e destination_name já vem pronto. Só preenche o que ainda estiver vazio —
-     OB_DATA (lh_trip_br_cost) continua tendo prioridade quando disponível.
-     Não toca driverMap: ob_monitor só tem agency_name (transportadora), que
-     não é o mesmo que o nome do motorista. */
-  BRIDGE_MONITOR.forEach(function(r){
-    var tn = (r.trip_number||'').trim();
-    if(!tn) return;
-    if(r.vehicle_type_name && !tipMap[tn]) tipMap[tn] = r.vehicle_type_name;
-    if(r.destination_name && !destMap[tn]) destMap[tn] = r.destination_name;
-    if(r.sta && !etaMap[tn]) etaMap[tn] = new Date(r.sta * 1000);
-  });
-
-  /* Agrupa TOs por LH Trip Number — direto do Bridge (lh_trip_number já vem
-     resolvido pela captura ao vivo da tela do SPX) */
-  var byTrip = {};
-  BRIDGE_TOS.forEach(function(to){
-    var tn = (to.lh_trip_number||'').trim();
-    if(!tn) return;
-    if(!byTrip[tn]) byTrip[tn] = [];
-    byTrip[tn].push(to);
-    /* Enriquece etaMap/destMap/driverMap com dados do Bridge quando o OB CSV não tiver */
-    if(to.driver_name&&to.driver_name.trim()&&!driverMap[tn])
-      driverMap[tn]=to.driver_name.trim();
-    if(to.dest_station_name&&to.dest_station_name.trim()&&!destMap[tn])
-      destMap[tn]=to.dest_station_name.trim();
-  });
-
-  /* Calcula Left-Over por trip */
-  TRIPS = [];
-  Object.keys(byTrip).forEach(function(tn){
-    var tos    = byTrip[tn];
-    var eta    = etaMap[tn] || null;
-    var corte  = eta ? new Date(eta.getTime() - 2*60*60*1000) : null; /* ETA - 2h */
-    var total  = tos.length;
-
-    /* TO embalada: complete_time > 0; se houver corte definido, valida que
-       foi embalada antes do corte (ETA - 2h) */
-    var embaladas = tos.filter(function(to){
-      var ct = to.complete_time || 0;
-      if(!ct || ct === 0) return false;
-      if(corte){
-        var ctDate = new Date(ct * 1000); /* unix timestamp */
-        return ctDate <= corte;
-      }
-      return true;
-    }).length;
-
-    var leftOver = total - embaladas;
-    var pct = total > 0 ? (embaladas / total * 100) : 100;
-
-    var status = pct >= 100 ? 'ok' : pct >= 99 ? 'warn' : 'crit';
+    var embaladas = trip.loaded_to_quantity || 0;
+    var leftOver  = sumPackString(trip.pending_to_pack);
+    var total     = embaladas + leftOver;
+    var pct       = total > 0 ? (embaladas / total * 100) : 100;
+    var status    = pct >= 100 ? 'ok' : pct >= 99 ? 'warn' : 'crit';
 
     var turno='--';
     if(eta){var hm=eta.getHours()*60+eta.getMinutes();turno=hm>=325&&hm<=824?'T1':hm>=825&&hm<=1319?'T2':'T3';}
-    TRIPS.push({tn:tn,dest:destMap[tn]||'--',driver:driverMap[tn]||'--',tipologia:tipMap[tn]||'--',
-      eta:eta,corte:corte,total:total,embaladas:embaladas,leftOver:leftOver,pct:pct,status:status,turno:turno});
+
+    return {
+      tn: tn,
+      dest: (trip.next_station_name && trip.next_station_name[0]) || '--',
+      driver: trip.driver_name || '--',
+      tipologia: trip.vehicle_type_name || '--',
+      eta: eta, corte: corte,
+      total: total, embaladas: embaladas, leftOver: leftOver, pct: pct,
+      status: status, turno: turno,
+      partiu: !!(trip.atd && trip.atd > 0) /* trip já saiu — se leftOver>0 aqui, é definitivo */
+    };
   });
 
   /* Sort: críticos primeiro, depois % crescente */
@@ -927,9 +874,9 @@ function setFilter(f){
 function renderTable(){
   /* Atualiza fonte de dados */
   var srcEl = document.getElementById('source-label');
-  if(srcEl) srcEl.textContent = BRIDGE_TOS.length > 0
-    ? '⚡ Bridge live ('+BRIDGE_TOS.length+' TOs'+
-      (BRIDGE_MONITOR.length ? ' · '+BRIDGE_MONITOR.length+' trips c/ tipologia' : '')+')'
+  if(srcEl) srcEl.textContent = BRIDGE_TRIP_DETAIL.length > 0
+    ? '⚡ Bridge live ('+BRIDGE_TRIP_DETAIL.length+' trips detalhadas'+
+      (BRIDGE_MONITOR.length ? ' de '+BRIDGE_MONITOR.length+' na lista' : '')+')'
     : '⚠ Bridge não conectado';
   var vis=filteredTrips();
 

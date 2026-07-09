@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Left-Over Monitor — SOC-CE3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg0: #0A0A0A;
+  --bg1: #111111;
+  --bg2: #181818;
+  --bg3: #202020;
+  --bg4: #282828;
+  --line: rgba(255,255,255,.06);
+  --ora: #EE4D2D;
+  --ora-d: rgba(238,77,45,.12);
+  --grn: #22C55E;
+  --grn-d: rgba(34,197,94,.12);
+  --amb: #F59E0B;
+  --amb-d: rgba(245,158,11,.12);
+  --red: #EF4444;
+  --red-d: rgba(239,68,68,.12);
+  --text: #F0EDE6;
+  --text2: #9A9A8A;
+  --text3: #5A5A50;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  min-height: 100vh;
+  background: var(--bg0);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── HEADER ─────────────────────────────────────────────────── */
+.header {
+  background: var(--bg1);
+  border-bottom: 1px solid var(--line);
+  padding: 0 28px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-mark {
+  width: 28px; height: 28px;
+  background: var(--ora);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 14px; color: #fff;
+  flex-shrink: 0;
+}
+
+.header-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -.01em;
+}
+
+.header-sub {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.clock {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  background: var(--bg3);
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+}
+
+.btn-import {
+  background: var(--ora);
+  color: #fff;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: background .15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-import:hover { background: #d43e22; }
+
+/* ── HERO KPI ────────────────────────────────────────────────── */
+.hero {
+  padding: 28px 28px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.kpi-card {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.kpi-card.main-kpi {
+  grid-column: span 1;
+}
+
+.kpi-card.main-kpi::before { background: var(--grn); }
+.kpi-card.warn::before { background: var(--amb); }
+.kpi-card.crit::before { background: var(--red); }
+.kpi-card.neutral::before { background: var(--ora); }
+
+.kpi-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 1;
+  font-family: var(--mono);
+  letter-spacing: -.03em;
+}
+
+.kpi-value.ok   { color: var(--grn); }
+.kpi-value.warn { color: var(--amb); }
+.kpi-value.crit { color: var(--red); }
+.kpi-value.neu  { color: var(--text); }
+
+.kpi-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 6px;
+}
+
+/* ── MAIN CONTENT ────────────────────────────────────────────── */
+.main {
+  padding: 20px 28px 40px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  margin-top: 24px;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.filter-bar {
+  display: flex;
+  gap: 6px;
+}
+
+.chip {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--bg3);
+  color: var(--text2);
+  transition: all .12s;
+}
+.chip.active-ok   { background: var(--grn-d); border-color: var(--grn); color: var(--grn); }
+.chip.active-warn { background: var(--amb-d); border-color: var(--amb); color: var(--amb); }
+.chip.active-crit { background: var(--red-d); border-color: var(--red); color: var(--red); }
+.chip:hover { border-color: var(--text3); }
+
+/* ── TRIP TABLE ──────────────────────────────────────────────── */
+.trip-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.trip-table thead tr {
+  background: var(--bg2);
+}
+
+.trip-table th {
+  padding: 10px 14px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text3);
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.trip-table tbody tr {
+  border-bottom: 1px solid var(--line);
+  transition: background .1s;
+}
+.trip-table tbody tr:last-child { border-bottom: none; }
+.trip-table tbody tr:hover { background: var(--bg3); }
+.trip-table tbody tr.row-ok   { background: rgba(34,197,94,.04); }
+.trip-table tbody tr.row-warn { background: rgba(245,158,11,.04); }
+.trip-table tbody tr.row-crit { background: rgba(239,68,68,.04); }
+
+.trip-table td {
+  padding: 11px 14px;
+  font-size: 12px;
+  color: var(--text2);
+  vertical-align: middle;
+}
+
+.trip-table td.tn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dest-label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── BARRA DE PROGRESSO ──────────────────────────────────────── */
+.prog-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prog-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg4);
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 80px;
+}
+
+.prog-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .6s ease;
+}
+
+.prog-pct {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 48px;
+  text-align: right;
+}
+
+.prog-pct.ok   { color: var(--grn); }
+.prog-pct.warn { color: var(--amb); }
+.prog-pct.crit { color: var(--red); }
+
+/* ── BADGE STATUS ────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.badge-ok   { background: var(--grn-d); color: var(--grn); border: 1px solid rgba(34,197,94,.2); }
+.badge-warn { background: var(--amb-d); color: var(--amb); border: 1px solid rgba(245,158,11,.2); }
+.badge-crit { background: var(--red-d); color: var(--red); border: 1px solid rgba(239,68,68,.2); }
+.badge-neu  { background: var(--bg4);   color: var(--text2); border: 1px solid var(--line); }
+
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ── COUNTDOWN ───────────────────────────────────────────────── */
+.countdown {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.countdown.ok   { color: var(--grn); background: var(--grn-d); }
+.countdown.warn { color: var(--amb); background: var(--amb-d); }
+.countdown.crit { color: var(--red); background: var(--red-d); animation: pulse-red 1.5s infinite; }
+.countdown.past { color: var(--text3); background: var(--bg4); }
+
+@keyframes pulse-red {
+  0%,100% { opacity: 1; }
+  50%      { opacity: .5; }
+}
+
+/* ── EMPTY STATE ─────────────────────────────────────────────── */
+.empty {
+  text-align: center;
+  padding: 64px 32px;
+  color: var(--text3);
+}
+
+.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: .3; }
+.empty-title { font-size: 16px; font-weight: 600; color: var(--text2); margin-bottom: 8px; }
+.empty-sub { font-size: 12px; }
+
+/* ── LEGEND ──────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+/* ── DETAIL PANEL ────────────────────────────────────────────── */
+.detail-mini {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+}
+
+/* ── DONUT ───────────────────────────────────────────────────── */
+.donut-wrap {
+  position: relative;
+  width: 52px; height: 52px;
+  flex-shrink: 0;
+}
+.donut-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  pointer-events: none;
+}
+.donut-pct { font-size: 11px; }
+.donut-lo  { font-size: 9px; color: var(--text3); }
+.prog-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.prog-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.prog-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo-mark">S</div>
+    <div>
+      <div class="header-title">Left-Over Monitor</div>
+      <div class="header-sub">SOC-CE3 · Outbound Packaging KPI</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="clock" id="clock">--:--:--</div>
+    <label class="btn-import" id="btn-import-ob" style="cursor:pointer;background:var(--bg3);border:1px solid var(--line);">
+      ↑ Importar Outbound CSV
+      <input type="file" id="fi-ob" accept=".csv" style="display:none">
+    </label>
+    <button class="btn-import" id="btn-bridge" onclick="importBridge()"
+      style="background:var(--bg3);border:1px solid rgba(139,92,246,.4);color:#a78bfa;">
+      ⚡ SPX Bridge
+    </button>
+    <div id="badge-bridge" style="display:none;font-size:10px;font-family:var(--mono);
+      color:#a78bfa;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);
+      padding:4px 8px;border-radius:5px;">--</div>
+  </div>
+</div>
+
+<!-- HERO KPIs -->
+<div class="hero" id="hero">
+  <div class="kpi-card neutral">
+    <div class="kpi-eyebrow">KPI Left-Over</div>
+    <div class="kpi-value neu" id="kpi-geral">--</div>
+    <div class="kpi-sub" id="kpi-geral-sub">Aguardando dados</div>
+  </div>
+  <div class="kpi-card neutral">
+    <div class="kpi-eyebrow">Trips Monitoradas</div>
+    <div class="kpi-value neu" id="kpi-trips">--</div>
+    <div class="kpi-sub" id="kpi-trips-sub">Total de trips com TOs</div>
+  </div>
+  <div class="kpi-card neutral">
+    <div class="kpi-eyebrow">TOs Embaladas</div>
+    <div class="kpi-value neu" id="kpi-emb">--</div>
+    <div class="kpi-sub" id="kpi-emb-sub">Dentro do prazo de corte</div>
+  </div>
+  <div class="kpi-card neutral">
+    <div class="kpi-eyebrow">Left-Over (pacotes)</div>
+    <div class="kpi-value neu" id="kpi-lo">--</div>
+    <div class="kpi-sub" id="kpi-lo-sub">TOs não embaladas no corte</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- FILTER BAR -->
+  <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);white-space:nowrap;">Período</span>
+      <input type="date" id="f-date-from" oninput="applyFilters()"
+        style="background:var(--bg3);border:1px solid var(--line);border-radius:5px;color:var(--text2);font-size:11px;padding:4px 8px;font-family:var(--mono);">
+      <span style="color:var(--text3);font-size:11px;">—</span>
+      <input type="date" id="f-date-to" oninput="applyFilters()"
+        style="background:var(--bg3);border:1px solid var(--line);border-radius:5px;color:var(--text2);font-size:11px;padding:4px 8px;font-family:var(--mono);">
+    </div>
+    <div style="width:1px;height:24px;background:var(--line);"></div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Turno</span>
+      <div class="chip active-ok" id="ft-all" onclick="setTurno('all')">Todos</div>
+      <div class="chip" id="ft-t1" onclick="setTurno('T1')">T1</div>
+      <div class="chip" id="ft-t2" onclick="setTurno('T2')">T2</div>
+      <div class="chip" id="ft-t3" onclick="setTurno('T3')">T3</div>
+    </div>
+    <div style="width:1px;height:24px;background:var(--line);"></div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Destino</span>
+      <select id="f-dest" onchange="applyFilters()"
+        style="background:var(--bg3);border:1px solid var(--line);border-radius:5px;color:var(--text2);font-size:11px;padding:4px 8px;font-family:var(--sans);min-width:140px;">
+        <option value="">Todos</option>
+      </select>
+    </div>
+    <div style="width:1px;height:24px;background:var(--line);flex-shrink:0;"></div>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--grn)"></div>Meta (100%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--amb)"></div>Atenção (99–99,9%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Crítico (&lt;99%)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <div class="section-title">Detalhamento por Trip <span id="source-label" style="font-size:9px;color:var(--text3);font-weight:400;margin-left:8px;"></span></div>
+    <div class="filter-bar">
+      <div class="chip active-ok" id="f-all" onclick="setFilter('all')">Todos</div>
+      <div class="chip" id="f-crit" onclick="setFilter('crit')">🔴 Crítico</div>
+      <div class="chip" id="f-warn" onclick="setFilter('warn')">🟡 Atenção</div>
+      <div class="chip" id="f-ok" onclick="setFilter('ok')">🟢 Meta</div>
+    </div>
+  </div>
+
+  <div id="table-wrap">
+    <div class="empty">
+      <div class="empty-icon">📦</div>
+      <div class="empty-title">Nenhum dado carregado</div>
+      <div class="empty-sub">Conecte o ⚡ SPX Bridge (status por TO em tempo real) e importe o CSV Outbound (lh_trip_br_cost) para ETA/destino/driver.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── GLOBALS ──────────────────────────────────────────────────── */
+var OB_DATA   = []; /* lh_trip_br_cost OB rows */
+var TRIPS     = []; /* computed trip summaries */
+var FILTER='all';
+var F_TURNO='all';
+function setTurno(t){
+  F_TURNO=t;
+  ['all','T1','T2','T3'].forEach(function(k){
+    var el=document.getElementById('ft-'+k.toLowerCase());
+    if(el)el.className='chip'+(k===t?' active-ok':'');
+  });
+  updateKPIs();renderTable();
+}
+function applyFilters(){updateKPIs();renderTable();}
+function filteredTrips(){
+  var dF=document.getElementById('f-date-from')?document.getElementById('f-date-from').value:'';
+  var dT=document.getElementById('f-date-to')?document.getElementById('f-date-to').value:'';
+  var dV=document.getElementById('f-dest')?document.getElementById('f-dest').value:'';
+  return TRIPS.filter(function(t){
+    if(FILTER!=='all'&&t.status!==FILTER)return false;
+    if(F_TURNO!=='all'&&t.turno!==F_TURNO)return false;
+    if(dV&&t.dest!==dV)return false;
+    if(t.eta){var ed=t.eta.toISOString().slice(0,10);if(dF&&ed<dF)return false;if(dT&&ed>dT)return false;}
+    return true;
+  });
+}
+
+/* ── CLOCK ───────────────────────────────────────────────────── */
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
+function tickClock(){
+  var n = new Date();
+  document.getElementById('clock').textContent =
+    pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());
+}
+tickClock();
+setInterval(tickClock, 1000);
+setInterval(renderTable, 30000); /* refresh countdowns every 30s */
+
+/* ── CSV PARSERS ─────────────────────────────────────────────── */
+function parseCSV(text){
+  /* Remove BOM se presente */
+  text = text.replace(/^\uFEFF/,'');
+  var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if(!lines.length) return [];
+
+  /* Auto-detecta separador: conta ; vs , na primeira linha */
+  var sep = (lines[0].split(';').length > lines[0].split(',').length) ? ';' : ',';
+  console.log('[LO] Separador:', sep===',' ? 'vírgula' : 'ponto-e-vírgula', '| Colunas:', lines[0].split(sep).length);
+
+  var headers = lines[0].split(sep).map(function(h){
+    return h.trim().replace(/^"|"$/g,'').trim();
+  });
+
+  var rows = [];
+  for(var i = 1; i < lines.length; i++){
+    if(!lines[i].trim()) continue;
+    var vals = splitCSVLine(lines[i], sep);
+    var row = {};
+    headers.forEach(function(h, idx){
+      row[h] = (vals[idx]||'').replace(/^"|"$/g,'').trim();
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function splitCSVLine(line, sep){
+  sep = sep || ',';
+  var result = [], cur = '', inQ = false;
+  for(var i = 0; i < line.length; i++){
+    var c = line[i];
+    if(c === '"'){ inQ = !inQ; }
+    else if(c === sep && !inQ){ result.push(cur); cur = ''; }
+    else { cur += c; }
+  }
+  result.push(cur);
+  return result;
+}
+
+function parseDT(str){
+  if(!str || str === '-' || str === '') return null;
+  var d = new Date(str);
+  if(!isNaN(d)) return d;
+  /* try DD/MM/YYYY HH:MM */
+  var m = str.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if(m) return new Date(m[3],m[2]-1,m[1],m[4],m[5]);
+  return null;
+}
+
+/* ── FILE IMPORTS ────────────────────────────────────────────── */
+document.getElementById('fi-ob').addEventListener('change', function(e){
+  var f = e.target.files[0]; if(!f) return;
+  var r = new FileReader();
+  r.onload = function(ev){
+    OB_DATA = parseCSV(ev.target.result);
+    console.log('[LO] OB carregado:', OB_DATA.length, 'linhas');
+    if(!OB_DATA.length){
+      alert('CSV Outbound não processado. Verifique se o arquivo é válido.');
+      return;
+    }
+    compute();
+    console.log('[LO] Trips OB processadas:', TRIPS.length);
+  };
+  r.readAsText(f, 'utf-8');
+  e.target.value = '';
+});
+
+/* ── SPX BRIDGE ──────────────────────────────────────────────── */
+var BRIDGE_TOS     = []; /* TOs capturadas pelo SPX Bridge (ob_tos) */
+var BRIDGE_MONITOR = []; /* Trips capturadas via tela Outbound Monitoring (ob_monitor) —
+                             traz vehicle_type_name (tipologia real), sta, destination_name */
+
+function importBridge(){
+  var EXT_ID = 'lnihdebpcnlfoikellnlkeebhphfahlp';
+  var btn = document.getElementById('btn-bridge');
+  if(typeof chrome==='undefined'||!chrome.runtime||!chrome.runtime.sendMessage){
+    alert('SPX Bridge não detectado. Certifique-se de que a extensão está instalada e ativa em chrome://extensions/');
+    return;
+  }
+  if(btn) btn.textContent='⚡ Carregando...';
+  chrome.runtime.sendMessage(EXT_ID,{type:'GET_DATA'},function(resp){
+    if(chrome.runtime.lastError){
+      alert('Erro ao conectar à extensão: '+chrome.runtime.lastError.message);
+      if(btn) btn.textContent='⚡ SPX Bridge';
+      return;
+    }
+    if(!resp||!resp.ok||!resp.ob_tos||!resp.ob_tos.length){
+      alert('SPX Bridge: nenhuma TO capturada. Abra o SPX, navegue pelas TOs e tente novamente.');
+      if(btn) btn.textContent='⚡ SPX Bridge';
+      return;
+    }
+    BRIDGE_TOS = resp.ob_tos;
+    var updStr = resp.ts ? new Date(resp.ts).toLocaleTimeString('pt-BR') : '--';
+
+    /* Busca também o ob_monitor (v1.4): tipologia real do veículo, ETA,
+       destino — enriquece TRIPS mas não bloqueia se vier vazio (basta a
+       tela Outbound Monitoring ainda não ter sido aberta nessa sessão) */
+    chrome.runtime.sendMessage(EXT_ID,{type:'GET_OB_MONITOR'},function(resp2){
+      BRIDGE_MONITOR = (resp2 && resp2.ok && resp2.ob_monitor) ? resp2.ob_monitor : [];
+
+      var badge = document.getElementById('badge-bridge');
+      if(badge){
+        badge.style.display='';
+        badge.textContent = BRIDGE_TOS.length+' TOs live'+
+          (BRIDGE_MONITOR.length ? ' · '+BRIDGE_MONITOR.length+' trips' : '');
+      }
+      if(btn){
+        btn.textContent='⚡ Bridge ✓';
+        btn.style.borderColor='var(--grn)';
+        btn.style.color='var(--grn)';
+      }
+      compute();
+      console.log('[LO Bridge] '+BRIDGE_TOS.length+' TOs · '+BRIDGE_MONITOR.length+
+        ' trips (monitor) | última captura: '+updStr);
+      if(!BRIDGE_MONITOR.length) console.log('[LO Bridge] ob_monitor vazio — '+
+        'abra a tela Outbound Monitoring no SPX pra capturar tipologia/ETA.');
+    });
+  });
+}
+
+/* ── COMPUTE ─────────────────────────────────────────────────── */
+/* Fonte única de status por-TO: SPX Bridge (captura ao vivo, com lh_trip_number
+   já resolvido pela própria tela do SPX). Não existe export CSV do SPX que
+   ligue TO Number a LH Trip Number — confirmado por análise de outbound_staging_area,
+   to_*.csv, QueueList e export_reception_order (04/07/2026). O CSV Outbound
+   (lh_trip_br_cost) segue servindo só de contexto: ETA, destino, driver. */
+function compute(){
+  if(!BRIDGE_TOS.length){ TRIPS = []; updateKPIs(); renderTable(); return; }
+
+  /* Mapa de ETA Origem por trip number (do lh_trip_br_cost OB) */
+  var etaMap = {}; /* tn → Date (ETA Origem = Schedule Arrival Time) */
+  var destMap = {}; /* tn → dest */
+  var driverMap = {};
+  var tipMap = {};
+
+  OB_DATA.forEach(function(r){
+    var tn  = r['LH Trip Number'] || r['Trip Number'] || r['lh_trip_number'] || '';
+    var sta = r['Station Name']   || '';
+    if(!tn) return;
+    /* ETA Origem = Schedule Arrival Time na estação de origem */
+    var schedArr = parseDT(r['Schedule Arrival Time']);
+    if(schedArr && !etaMap[tn]) etaMap[tn] = schedArr;
+    /* Destino: próxima estação (Station Number > 1) */
+    if(sta && sta !== 'SoC_CE_Itaitinga' && !destMap[tn]) destMap[tn] = sta;
+    if(r['Driver'] && r['Driver'] !== '-' && !driverMap[tn]) driverMap[tn] = r['Driver'];
+    if(r['Vehicle Type'] && !tipMap[tn]) tipMap[tn] = r['Vehicle Type'];
+  });
+
+  /* Enriquece com ob_monitor (SPX Bridge v1.4 — tela Outbound Monitoring):
+     vehicle_type_name é a tipologia REAL do veículo (Carreta/Truck/Toco/3/4/
+     HR, inclusive variantes "- Expressa"), sta é o horário programado (unix)
+     e destination_name já vem pronto. Só preenche o que ainda estiver vazio —
+     OB_DATA (lh_trip_br_cost) continua tendo prioridade quando disponível.
+     Não toca driverMap: ob_monitor só tem agency_name (transportadora), que
+     não é o mesmo que o nome do motorista. */
+  BRIDGE_MONITOR.forEach(function(r){
+    var tn = (r.trip_number||'').trim();
+    if(!tn) return;
+    if(r.vehicle_type_name && !tipMap[tn]) tipMap[tn] = r.vehicle_type_name;
+    if(r.destination_name && !destMap[tn]) destMap[tn] = r.destination_name;
+    if(r.sta && !etaMap[tn]) etaMap[tn] = new Date(r.sta * 1000);
+  });
+
+  /* Agrupa TOs por LH Trip Number — direto do Bridge (lh_trip_number já vem
+     resolvido pela captura ao vivo da tela do SPX) */
+  var byTrip = {};
+  BRIDGE_TOS.forEach(function(to){
+    var tn = (to.lh_trip_number||'').trim();
+    if(!tn) return;
+    if(!byTrip[tn]) byTrip[tn] = [];
+    byTrip[tn].push(to);
+    /* Enriquece etaMap/destMap/driverMap com dados do Bridge quando o OB CSV não tiver */
+    if(to.driver_name&&to.driver_name.trim()&&!driverMap[tn])
+      driverMap[tn]=to.driver_name.trim();
+    if(to.dest_station_name&&to.dest_station_name.trim()&&!destMap[tn])
+      destMap[tn]=to.dest_station_name.trim();
+  });
+
+  /* Calcula Left-Over por trip */
+  TRIPS = [];
+  Object.keys(byTrip).forEach(function(tn){
+    var tos    = byTrip[tn];
+    var eta    = etaMap[tn] || null;
+    var corte  = eta ? new Date(eta.getTime() - 2*60*60*1000) : null; /* ETA - 2h */
+    var total  = tos.length;
+
+    /* TO embalada: complete_time > 0; se houver corte definido, valida que
+       foi embalada antes do corte (ETA - 2h) */
+    var embaladas = tos.filter(function(to){
+      var ct = to.complete_time || 0;
+      if(!ct || ct === 0) return false;
+      if(corte){
+        var ctDate = new Date(ct * 1000); /* unix timestamp */
+        return ctDate <= corte;
+      }
+      return true;
+    }).length;
+
+    var leftOver = total - embaladas;
+    var pct = total > 0 ? (embaladas / total * 100) : 100;
+
+    var status = pct >= 100 ? 'ok' : pct >= 99 ? 'warn' : 'crit';
+
+    var turno='--';
+    if(eta){var hm=eta.getHours()*60+eta.getMinutes();turno=hm>=325&&hm<=824?'T1':hm>=825&&hm<=1319?'T2':'T3';}
+    TRIPS.push({tn:tn,dest:destMap[tn]||'--',driver:driverMap[tn]||'--',tipologia:tipMap[tn]||'--',
+      eta:eta,corte:corte,total:total,embaladas:embaladas,leftOver:leftOver,pct:pct,status:status,turno:turno});
+  });
+
+  /* Sort: críticos primeiro, depois % crescente */
+  TRIPS.sort(function(a,b){
+    var ord = {crit:0,warn:1,ok:2};
+    if(ord[a.status] !== ord[b.status]) return ord[a.status]-ord[b.status];
+    return a.pct - b.pct;
+  });
+
+  /* Popula destinos */
+  var dSel=document.getElementById('f-dest');
+  if(dSel){
+    var dests=[...new Set(TRIPS.map(function(t){return t.dest;}))].filter(function(d){return d&&d!=='--';}).sort();
+    var cur=dSel.value;
+    dSel.innerHTML='<option value="">Todos</option>'+dests.map(function(d){
+      return '<option value="'+d+'"'+(d===cur?' selected':'')+'>'+shortDest(d)+'</option>';
+    }).join('');
+  }
+  updateKPIs();
+  renderTable();
+}
+
+/* ── KPIs ────────────────────────────────────────────────────── */
+function updateKPIs(){
+  var vis0=filteredTrips();
+  var totalTOs=vis0.reduce(function(s,t){return s+t.total;},0);
+  var totalEmb=vis0.reduce(function(s,t){return s+t.embaladas;},0);
+  var totalLO=vis0.reduce(function(s,t){return s+t.leftOver;},0);
+  var geralPct   = totalTOs > 0 ? (totalEmb/totalTOs*100) : 100;
+  var geralStatus= geralPct >= 100?'ok':geralPct>=99?'warn':'crit';
+
+  var el = document.getElementById('kpi-geral');
+  el.textContent = geralPct.toFixed(1)+'%';
+  el.className   = 'kpi-value '+(geralStatus==='ok'?'ok':geralStatus==='warn'?'warn':'crit');
+
+  document.getElementById('kpi-geral-sub').textContent =
+    geralStatus==='ok'?'✓ Meta cumprida':
+    geralStatus==='warn'?'⚠ Atenção — próximo da meta':
+    '✗ Abaixo do mínimo — ação imediata';
+
+  document.getElementById('kpi-trips').textContent = TRIPS.length;
+  document.getElementById('kpi-trips-sub').textContent =
+    vis0.filter(function(t){return t.status==='crit';}).length+' críticas · '+
+    vis0.filter(function(t){return t.status==='warn';}).length+' em atenção';
+
+  document.getElementById('kpi-emb').textContent = totalEmb.toLocaleString('pt-BR');
+  document.getElementById('kpi-emb-sub').textContent = 'de '+totalTOs.toLocaleString('pt-BR')+' TOs totais';
+
+  document.getElementById('kpi-lo').textContent = totalLO.toLocaleString('pt-BR');
+  document.getElementById('kpi-lo-sub').textContent = totalLO===0?'Zero pacotes perdidos':
+    totalLO+' pacote'+(totalLO>1?'s':'')+' não embalado'+(totalLO>1?'s':'');
+
+  /* Atualiza cor da borda superior dos cards KPI */
+  var cards = document.querySelectorAll('.kpi-card');
+  if(cards[0]){
+    cards[0].className='kpi-card '+(geralStatus==='ok'?'main-kpi':geralStatus==='warn'?'warn':'crit');
+  }
+}
+
+/* ── COUNTDOWN ───────────────────────────────────────────────── */
+function fmtCountdown(corte){
+  if(!corte) return '<span class="countdown past">Sem ETA</span>';
+  var now  = new Date();
+  var diff = corte - now; /* ms */
+  if(diff < 0){
+    var ago = Math.abs(Math.round(diff/60000));
+    var h   = Math.floor(ago/60), m = ago%60;
+    return '<span class="countdown past">Corte há '+(h>0?h+'h':'')+pad(m)+'min</span>';
+  }
+  var mins = Math.round(diff/60000);
+  var h    = Math.floor(mins/60), m = mins%60;
+  var cls  = mins>60?'ok':mins>20?'warn':'crit';
+  return '<span class="countdown '+cls+'">⏱ '+(h>0?h+'h':'')+pad(m)+'min</span>';
+}
+
+function progColor(pct){
+  if(pct>=100) return 'var(--grn)';
+  if(pct>=99)  return 'var(--amb)';
+  return 'var(--red)';
+}
+
+function statusBadge(status){
+  if(status==='ok')   return '<span class="badge badge-ok"><span class="dot"></span>META</span>';
+  if(status==='warn') return '<span class="badge badge-warn"><span class="dot"></span>ATENÇÃO</span>';
+  return '<span class="badge badge-crit"><span class="dot"></span>CRÍTICO</span>';
+}
+
+function shortDest(d){
+  return d.replace('LM Hub_CE_','LM CE ')
+          .replace('LM Hub_CE ','LM CE ')
+          .replace('SoC_CE_Itaitinga','CE3')
+          .replace('XPT_CE_','XPT ')
+          .replace(/_/g,' ');
+}
+
+/* ── DONUT CELL ──────────────────────────────────────────────── */
+function donutCell(t){
+  var pct     = t.pct;
+  var pctDisp = Math.min(pct, 100);
+  var color   = progColor(pct);
+  var r=20, cx=26, cy=26, sw=5;
+  var circ    = 2*Math.PI*r;
+  var dash    = circ*(pctDisp/100);
+  var gap     = circ-dash;
+  var pctFmt  = pct>=100?'100%':pct.toFixed(1)+'%';
+  var loStr   = t.leftOver>0?('-'+t.leftOver+' LO'):'✓';
+  var loColor = t.leftOver>0?'var(--red)':'var(--grn)';
+
+  var svg = '<svg width="52" height="52" viewBox="0 0 52 52">'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--bg4)" stroke-width="'+sw+'"/>'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+sw+'"'+
+      ' stroke-dasharray="'+dash.toFixed(2)+' '+gap.toFixed(2)+'"'+
+      ' stroke-dashoffset="'+(circ/4).toFixed(2)+'"'+
+      ' stroke-linecap="round"'+
+      ' transform="rotate(-90 '+cx+' '+cy+')"'+
+      ' style="transition:stroke-dasharray .8s ease"/>'+
+    '</svg>';
+
+  /* Mini bar abaixo do donut */
+  var barW = Math.min(pctDisp,100);
+  var bar  = '<div class="prog-track" style="height:4px;width:80px;margin-top:2px;">'+
+             '<div class="prog-fill" style="width:'+barW+'%;background:'+color+'"></div>'+
+             '</div>';
+
+  return '<div class="prog-cell">'+
+    '<div class="donut-wrap">'+svg+
+      '<div class="donut-label">'+
+        '<span class="donut-pct" style="color:'+color+'">'+pctFmt+'</span>'+
+        '<span class="donut-lo"  style="color:'+loColor+'">'+loStr+'</span>'+
+      '</div>'+
+    '</div>'+
+    '<div class="prog-detail">'+
+      '<div class="prog-bar-row">'+bar+
+        '<span style="font-size:10px;color:var(--text3);font-family:var(--mono)">'+
+          t.embaladas+'/'+t.total+
+        '</span>'+
+      '</div>'+
+      '<div style="font-size:10px;color:var(--text3);">'+
+        t.embaladas.toLocaleString('pt-BR')+' embaladas'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+/* ── RENDER TABLE ────────────────────────────────────────────── */
+function setFilter(f){
+  FILTER = f;
+  ['all','ok','warn','crit'].forEach(function(k){
+    var el = document.getElementById('f-'+k);
+    if(!el) return;
+    el.className = 'chip'+(k===f?' active-'+(k==='all'?'ok':k):'');
+  });
+  renderTable();
+}
+
+function renderTable(){
+  /* Atualiza fonte de dados */
+  var srcEl = document.getElementById('source-label');
+  if(srcEl) srcEl.textContent = BRIDGE_TOS.length > 0
+    ? '⚡ Bridge live ('+BRIDGE_TOS.length+' TOs'+
+      (BRIDGE_MONITOR.length ? ' · '+BRIDGE_MONITOR.length+' trips c/ tipologia' : '')+')'
+    : '⚠ Bridge não conectado';
+  var vis=filteredTrips();
+
+  var wrap = document.getElementById('table-wrap');
+  if(!vis.length){
+    wrap.innerHTML = '<div class="empty">'+
+      '<div class="empty-icon">'+(TRIPS.length?'🎯':'📦')+'</div>'+
+      '<div class="empty-title">'+(TRIPS.length?'Nenhuma trip com esse filtro':'Nenhum dado carregado')+'</div>'+
+      '<div class="empty-sub">'+(TRIPS.length?'Ajuste os filtros acima.':'Conecte o ⚡ SPX Bridge para visualizar o Left-Over por trip.')+'</div>'+
+      '</div>';
+    return;
+  }
+
+  var rows = vis.map(function(t){
+    var loStr   = t.leftOver > 0
+      ? '<span style="color:var(--red);font-weight:700">'+t.leftOver+'</span>'
+      : '<span style="color:var(--grn)">0</span>';
+
+    return '<tr class="row-'+t.status+'">'+
+      '<td class="tn">'+t.tn+'</td>'+
+      '<td><span class="dest-label">'+shortDest(t.dest)+'</span></td>'+
+      '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+t.driver+'</td>'+
+      '<td style="font-size:11px;">'+t.tipologia+'</td>'+
+      '<td>'+statusBadge(t.status)+'</td>'+
+      '<td>'+donutCell(t)+'</td>'+
+      '<td style="text-align:center;">'+loStr+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);font-size:11px;">'+t.total+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--grn);">'+t.embaladas+'</td>'+
+      '<td>'+fmtCountdown(t.corte)+'</td>'+
+      '</tr>';
+  });
+
+  wrap.innerHTML =
+    '<table class="trip-table">'+
+    '<thead><tr>'+
+      '<th>TRIP</th>'+
+      '<th>DESTINO</th>'+
+      '<th>DRIVER</th>'+
+      '<th>TIPOLOGIA</th>'+
+      '<th>STATUS</th>'+
+      '<th style="min-width:180px;">LEFT-OVER %</th>'+
+      '<th style="text-align:center;">PERDIDAS</th>'+
+      '<th style="text-align:center;">TOTAL TOs</th>'+
+      '<th style="text-align:center;">EMBALADAS</th>'+
+      '<th>CORTE (-2h ETA)</th>'+
+    '</tr></thead>'+
+    '<tbody>'+rows.join('')+'</tbody>'+
+    '</table>';
+}
+</script>
+</body>
+</html>

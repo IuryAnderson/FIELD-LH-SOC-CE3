@@ -21,6 +21,8 @@
   --amb-d: rgba(245,158,11,.12);
   --red: #EF4444;
   --red-d: rgba(239,68,68,.12);
+  --blu: #3B82F6;
+  --blu-d: rgba(59,130,246,.12);
   --text: #F0EDE6;
   --text2: #D8D6CC;
   --text3: #ABA99C;
@@ -332,6 +334,10 @@ html, body {
 .badge-warn { background: var(--amb-d); color: var(--amb); border: 1px solid rgba(245,158,11,.2); }
 .badge-crit { background: var(--red-d); color: var(--red); border: 1px solid rgba(239,68,68,.2); }
 .badge-neu  { background: var(--bg4);   color: var(--text2); border: 1px solid var(--line); }
+.badge-evo-atrib  { background: var(--bg4);   color: var(--text2); border: 1px solid var(--line); }
+.badge-evo-chegou { background: var(--blu-d); color: var(--blu);   border: 1px solid rgba(59,130,246,.25); }
+.badge-evo-carreg { background: var(--amb-d); color: var(--amb);   border: 1px solid rgba(245,158,11,.25); }
+.badge-evo-exped  { background: var(--grn-d); color: var(--grn);   border: 1px solid rgba(34,197,94,.25); }
 
 .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
@@ -561,6 +567,12 @@ html, body {
       <div class="chip" id="f-crit" onclick="toggleStatus('crit')">🔴 Crítico</div>
       <div class="chip" id="f-warn" onclick="toggleStatus('warn')">🟡 Atenção</div>
       <div class="chip" id="f-ok" onclick="toggleStatus('ok')">🟢 Meta</div>
+      <div style="width:1px;height:20px;background:var(--line);margin:0 6px;"></div>
+      <div class="chip active-neu" id="fe-all" onclick="toggleEvo('all')">Evolução: Todos</div>
+      <div class="chip" id="fe-5" onclick="toggleEvo(5)">Atribuído</div>
+      <div class="chip" id="fe-50" onclick="toggleEvo(50)">Chegou</div>
+      <div class="chip" id="fe-10" onclick="toggleEvo(10)">Carregando</div>
+      <div class="chip" id="fe-40" onclick="toggleEvo(40)">Expedido</div>
     </div>
   </div>
 
@@ -580,6 +592,7 @@ var TRIPS     = []; /* computed trip summaries */
    entre grupos é AND (Status E Turno E Destino) — cumulativos entre si */
 var F_STATUS = new Set(['crit','warn','ok']);
 var F_TURNO  = new Set(['T1','T2','T3']);
+var F_EVO    = new Set([5,10,40,50]);
 var SORT_COL = 'status';
 var SORT_DIR = 1;
 
@@ -605,6 +618,17 @@ function toggleTurno(t){
   });
   updateKPIs();renderTable();
 }
+function toggleEvo(e){
+  if(e === 'all'){ F_EVO = new Set([5,10,40,50]); }
+  else { F_EVO.has(e) ? F_EVO.delete(e) : F_EVO.add(e); }
+  ['all',5,10,40,50].forEach(function(k){
+    var el = document.getElementById('fe-'+k);
+    if(!el) return;
+    var active = k==='all' ? F_EVO.size===4 : F_EVO.has(k);
+    el.className = 'chip'+(active?' active-neu':'');
+  });
+  updateKPIs();renderTable();
+}
 function sortableTh(label, col, style){
   var arrow = SORT_COL===col ? (SORT_DIR===1?'▲':'▼') : '↕';
   var cls   = SORT_COL===col ? ' active' : '';
@@ -620,9 +644,14 @@ function setSort(col){
 }
 function sortTrips(list){
   var statusOrder = {crit:0,warn:1,ok:2};
+  var evoOrder = {5:0,50:1,10:2,40:3}; /* ordem do pipeline: Atribuído→Chegou→Carregando→Expedido */
   return list.slice().sort(function(a,b){
     var av, bv;
     if(SORT_COL==='status'){ av=statusOrder[a.status]; bv=statusOrder[b.status]; }
+    else if(SORT_COL==='evolucaoCode'){
+      av = evoOrder[a.evolucaoCode]!==undefined ? evoOrder[a.evolucaoCode] : 99;
+      bv = evoOrder[b.evolucaoCode]!==undefined ? evoOrder[b.evolucaoCode] : 99;
+    }
     else { av=a[SORT_COL]; bv=b[SORT_COL]; }
     if(av instanceof Date) { av = av?av.getTime():-Infinity; bv = bv?bv.getTime():-Infinity; }
     if(typeof av === 'string'){ av=(av||'').toLowerCase(); bv=(bv||'').toLowerCase(); }
@@ -641,6 +670,9 @@ function filteredTrips(){
   var list = TRIPS.filter(function(t){
     if(!F_STATUS.has(t.status)) return false;
     if(t.turno!=='--' && !F_TURNO.has(t.turno)) return false;
+    /* Só filtra por evolução se o código for um dos 4 confirmados — código
+       desconhecido sempre aparece, pra não esconder dado por falta de mapa */
+    if([5,10,40,50].indexOf(t.evolucaoCode)!==-1 && !F_EVO.has(t.evolucaoCode)) return false;
     if(dV&&t.dest!==dV)return false;
     if(t.eta){var ed=t.eta.toISOString().slice(0,10);if(dF&&ed<dF)return false;if(dT&&ed>dT)return false;}
     return true;
@@ -826,6 +858,8 @@ function compute(){
       turno = (hm>=325 && hm<=825) ? 'T1' : (hm>=826 && hm<=1325) ? 'T2' : 'T3';
     }
 
+    var evolucaoCode = trip.trip_station_status;
+
     return {
       tn: tn,
       dest: (trip.next_station_name && trip.next_station_name[0]) || '--',
@@ -833,7 +867,7 @@ function compute(){
       tipologia: trip.vehicle_type_name || '--',
       eta: eta, std: std, corte: corte,
       total: total, embaladas: embaladas, leftOver: leftOver, breakdown: breakdown, pct: pct,
-      status: status, turno: turno,
+      status: status, turno: turno, evolucaoCode: evolucaoCode,
       partiu: !!(trip.atd && trip.atd > 0) /* trip já saiu — se leftOver>0 aqui, é definitivo */
     };
   });
@@ -917,6 +951,25 @@ function statusBadge(status){
   if(status==='ok')   return '<span class="badge badge-ok"><span class="dot"></span>META</span>';
   if(status==='warn') return '<span class="badge badge-warn"><span class="dot"></span>ATENÇÃO</span>';
   return '<span class="badge badge-crit"><span class="dot"></span>CRÍTICO</span>';
+}
+
+/* Mapeamento confirmado por evidência real (trip_station_status do
+   ob_trip_detail), verificado trip a trip com o Iury em 09-10/07/2026:
+   5=Assigned/Atribuído, 50=Arrived/Chegou, 10=Loading/Carregando,
+   40=Departed/Expedido. Qualquer outro código mostra o número cru em vez
+   de inventar um label sem evidência. */
+var EVO_MAP = {
+  5:  {label:'Atribuído',  cls:'badge-evo-atrib'},
+  50: {label:'Chegou',     cls:'badge-evo-chegou'},
+  10: {label:'Carregando', cls:'badge-evo-carreg'},
+  40: {label:'Expedido',   cls:'badge-evo-exped'}
+};
+function evolucaoLabel(code){
+  return EVO_MAP[code] ? EVO_MAP[code].label : ('Código '+code);
+}
+function evolucaoBadge(code){
+  var m = EVO_MAP[code] || {label:'Código '+code, cls:'badge-neu'};
+  return '<span class="badge '+m.cls+'">'+m.label+'</span>';
 }
 
 function isFarolActive(t){
@@ -1042,6 +1095,7 @@ function renderTable(){
       '<td><span class="dest-label">'+shortDest(t.dest)+'</span></td>'+
       '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t.driver+'">'+shortDriverName(t.driver)+'</td>'+
       '<td style="font-size:11px;">'+t.tipologia+'</td>'+
+      '<td>'+evolucaoBadge(t.evolucaoCode)+'</td>'+
       '<td>'+statusBadge(t.status)+(farolOn?farolBadge(t):'')+'</td>'+
       '<td>'+donutCell(t)+'</td>'+
       '<td style="text-align:center;">'+loStr+'</td>'+
@@ -1065,6 +1119,7 @@ function renderTable(){
       sortableTh('DESTINO','dest')+
       sortableTh('DRIVER','driver')+
       sortableTh('TIPOLOGIA','tipologia')+
+      sortableTh('EVOLUÇÃO','evolucaoCode')+
       sortableTh('STATUS','status')+
       sortableTh('LEFT-OVER %','pct','min-width:260px;')+
       sortableTh('PERDIDAS','leftOver','text-align:center;')+

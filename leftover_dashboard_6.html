@@ -789,17 +789,20 @@ function importBridge(silent){
   var EXT_ID = 'lnihdebpcnlfoikellnlkeebhphfahlp';
   var btn = document.getElementById('btn-bridge');
   if(typeof chrome==='undefined'||!chrome.runtime||!chrome.runtime.sendMessage){
+    console.warn('[LO Bridge] chrome.runtime indisponível — extensão não detectada nesta página.');
     if(!silent) alert('SPX Bridge não detectado. Certifique-se de que a extensão está instalada e ativa em chrome://extensions/');
     return;
   }
   if(btn && !silent) btn.textContent='⚡ Carregando...';
   chrome.runtime.sendMessage(EXT_ID,{type:'GET_OB_TRIP_DETAIL'},function(resp){
     if(chrome.runtime.lastError){
+      console.warn('[LO Bridge] Erro ao conectar à extensão:', chrome.runtime.lastError.message);
       if(!silent) alert('Erro ao conectar à extensão: '+chrome.runtime.lastError.message);
       if(btn && !silent) btn.textContent='⚡ SPX Bridge';
       return;
     }
     if(!resp||!resp.ok||!resp.ob_trip_detail||!resp.ob_trip_detail.length){
+      console.warn('[LO Bridge] Nenhuma trip em ob_trip_detail ainda. resp:', resp);
       if(!silent) alert('SPX Bridge: nenhuma trip detalhada ainda. Na tela Outbound Monitoring '+
         'do SPX, clique em cada trip que quiser acompanhar (abre o painel '+
         '"Detalhe da Viagem" e captura os dados), depois tente de novo.');

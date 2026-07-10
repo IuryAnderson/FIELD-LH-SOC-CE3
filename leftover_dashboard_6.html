@@ -232,8 +232,8 @@ html, body {
 }
 
 .trip-table th {
-  padding: 10px 14px;
-  font-size: 10px;
+  padding: 12px 16px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -261,19 +261,19 @@ html, body {
 .trip-table tbody tr:hover .badge-ok   { box-shadow: 0 0 14px rgba(34,197,94,.55); }
 .trip-table th.sortable { cursor: pointer; user-select: none; }
 .trip-table th.sortable:hover { color: var(--text); }
-.sort-arrow { opacity: .5; margin-left: 3px; font-size: 9px; }
+.sort-arrow { opacity: .5; margin-left: 3px; font-size: 11px; }
 .sort-arrow.active { opacity: 1; color: var(--ora); }
 
 .trip-table td {
-  padding: 11px 14px;
-  font-size: 12px;
+  padding: 13px 16px;
+  font-size: 15px;
   color: var(--text2);
   vertical-align: middle;
 }
 
 .trip-table td.tn {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 19px;
   font-weight: 700;
   color: var(--text);
 }
@@ -282,6 +282,29 @@ html, body {
   font-weight: 600;
   color: var(--text);
 }
+
+/* ── AÇÕES DE LINHA (ocultar / avançar evolução) ────────────────
+   Mesmo padrão do Dash SOC (tnCellOB). Ocultar é só visual — a trip
+   continua sendo capturada pelo polling ativo, só some da tabela.
+   Avançar é um override temporário, sobrescrito no próximo poll (5min). */
+.btn-row {
+  border: none;
+  background: var(--bg4);
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transition: background .15s;
+  flex-shrink: 0;
+}
+.btn-row:hover { background: var(--bg5, var(--bg4)); filter: brightness(1.3); }
+.btn-hide:hover { color: var(--red); }
+.btn-next:hover { color: var(--grn); }
+.btn-next[disabled] { opacity: .3; cursor: default; pointer-events: none; }
 
 /* ── BARRA DE PROGRESSO ──────────────────────────────────────── */
 .prog-wrap {
@@ -321,10 +344,10 @@ html, body {
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 10px;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: .04em;
   white-space: nowrap;
@@ -339,15 +362,15 @@ html, body {
 .badge-evo-carreg { background: var(--amb-d); color: var(--amb);   border: 1px solid rgba(245,158,11,.25); }
 .badge-evo-exped  { background: var(--grn-d); color: var(--grn);   border: 1px solid rgba(34,197,94,.25); }
 
-.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 
 /* ── COUNTDOWN ───────────────────────────────────────────────── */
 .countdown {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 5px 10px;
+  border-radius: 5px;
   white-space: nowrap;
 }
 
@@ -371,9 +394,9 @@ html, body {
   align-items: center;
   gap: 4px;
   margin-top: 6px;
-  padding: 3px 7px;
+  padding: 4px 9px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   background: var(--red-d);
   color: var(--red);
@@ -471,21 +494,28 @@ html, body {
 .donut-pct small { font-size: 12px; font-weight: 600; margin-left: 1px; }
 .pack-frac {
   font-family: var(--mono);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text);
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 .pack-frac span { color: var(--text3); font-weight: 400; }
+.ado-frac {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 5px;
+}
+.ado-frac b { color: var(--text); font-weight: 700; }
 .pack-row {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.5;
   white-space: nowrap;
 }
-.pack-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.pack-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .pack-label { color: var(--text2); }
 .pack-qty { font-family: var(--mono); font-weight: 700; margin-left: 2px; }
 .prog-cell {
@@ -548,7 +578,7 @@ html, body {
     <div class="kpi-sub" id="kpi-emb-sub">Dentro do prazo de corte</div>
   </div>
   <div class="kpi-card neutral">
-    <div class="kpi-eyebrow">Left-Over (pacotes)</div>
+    <div class="kpi-eyebrow">Left-Over (TOs)</div>
     <div class="kpi-value neu" id="kpi-lo">--</div>
     <div class="kpi-sub" id="kpi-lo-sub">TOs não embaladas no corte</div>
   </div>
@@ -622,6 +652,32 @@ html, body {
 <script>
 /* ── GLOBALS ──────────────────────────────────────────────────── */
 var TRIPS     = []; /* computed trip summaries */
+/* Ocultar/avançar status (item pedido pelo Iury, mesmo padrão do Dash SOC).
+   HIDDEN_TNS: puramente visual, não apaga dado nenhum — a trip continua
+   sendo capturada pelo polling ativo, só não aparece na tabela.
+   MANUAL_EVO: override visual da Evolução. IMPORTANTE: como aqui os dados
+   são AO VIVO (polling a cada 5min), esse avanço é só temporário — assim
+   que o próximo ciclo trouxer o trip_station_status real da API, ele
+   sobrescreve o override automaticamente (evolucaoCode é recalculado do
+   zero em cada compute()). Serve pra cobrir a janela de até 5min entre
+   uma mudança real no SPX e o polling perceber. */
+var HIDDEN_TNS = new Set();
+var MANUAL_EVO = {};
+var EVO_CHAIN = [5,50,10,40]; /* Atribuído→Chegou→Carregando→Expedido */
+
+function hideTrip(tn){ HIDDEN_TNS.add(tn); updateKPIs(); renderTable(); }
+function showTrip(tn){ HIDDEN_TNS.delete(tn); updateKPIs(); renderTable(); }
+
+function advanceEvo(tn){
+  var t = TRIPS.find(function(x){ return x.tn === tn; });
+  if(!t) return;
+  var cur = MANUAL_EVO[tn] !== undefined ? MANUAL_EVO[tn] : t.evolucaoCode;
+  var idx = EVO_CHAIN.indexOf(cur);
+  if(idx === -1 || idx >= EVO_CHAIN.length-1) return; /* já no último estado, ou código desconhecido */
+  MANUAL_EVO[tn] = EVO_CHAIN[idx+1];
+  renderTable();
+}
+
 /* Filtros multi-seleção: dentro de cada grupo é OR (Crítico OU Atenção),
    entre grupos é AND (Status E Turno E Destino) — cumulativos entre si */
 var F_STATUS = new Set(['crit','warn','ok']);
@@ -710,6 +766,7 @@ function filteredTrips(){
   var dT=document.getElementById('f-date-to')?document.getElementById('f-date-to').value:'';
   var dV=document.getElementById('f-dest')?document.getElementById('f-dest').value:'';
   var list = TRIPS.filter(function(t){
+    if(HIDDEN_TNS.has(t.tn)) return false;
     if(!F_STATUS.has(t.status)) return false;
     if(t.turno!=='--' && !F_TURNO.has(t.turno)) return false;
     /* Só filtra por evolução se o código for um dos 4 confirmados — código
@@ -901,6 +958,15 @@ function compute(){
     var pct       = total > 0 ? (embaladas / total * 100) : 100;
     var status    = pct >= 100 ? 'ok' : pct >= 99 ? 'warn' : 'crit';
 
+    /* ADO = pacotes (orders) — unidade diferente de TOs. loaded_order_quantity
+       e pending_order_quantity já vêm prontos no ob_trip_detail, sem precisar
+       de fonte nova. adoTotal = quanto essa trip deveria alcançar se tudo que
+       está staged for carregado (não é um "mínimo" configurado externamente —
+       isso viria do Stage Out do Planner, que não usamos aqui). */
+    var adoLoaded = trip.loaded_order_quantity || 0;
+    var adoPending = trip.pending_order_quantity || 0;
+    var adoTotal = adoLoaded + adoPending;
+
     /* Turno calculado só por minuto-do-dia do ETA Origem (ignora a data
        por completo) — mesma lógica usada na Análise Inbound, garante que
        o T3 cobre a virada da meia-noite corretamente (ex: 23:50 e 04:30
@@ -922,6 +988,7 @@ function compute(){
       tipologia: trip.vehicle_type_name || '--',
       eta: eta, std: std, corte: corte,
       total: total, embaladas: embaladas, leftOver: leftOver, breakdown: breakdown, pct: pct,
+      adoLoaded: adoLoaded, adoTotal: adoTotal,
       status: status, turno: turno, evolucaoCode: evolucaoCode,
       partiu: !!(trip.atd && trip.atd > 0) /* trip já saiu — se leftOver>0 aqui, é definitivo */
     };
@@ -970,8 +1037,8 @@ function updateKPIs(){
   document.getElementById('kpi-emb-sub').textContent = 'de '+totalTOs.toLocaleString('pt-BR')+' TOs totais';
 
   document.getElementById('kpi-lo').textContent = totalLO.toLocaleString('pt-BR');
-  document.getElementById('kpi-lo-sub').textContent = totalLO===0?'Zero pacotes perdidos':
-    totalLO+' pacote'+(totalLO>1?'s':'')+' não embalado'+(totalLO>1?'s':'');
+  document.getElementById('kpi-lo-sub').textContent = totalLO===0?'Zero TOs perdidas':
+    totalLO+' TO'+(totalLO>1?'s':'')+' não embalada'+(totalLO>1?'s':'')+' no corte';
 
   /* Atualiza cor da borda superior dos cards KPI */
   var cards = document.querySelectorAll('.kpi-card');
@@ -1136,6 +1203,7 @@ function donutCell(t){
     '</div>'+
     '<div class="prog-detail">'+
       '<div class="pack-frac">'+t.embaladas.toLocaleString('pt-BR')+'<span>/</span>'+t.total.toLocaleString('pt-BR')+' TOs</div>'+
+      '<div class="ado-frac">📦 ADO <b>'+t.adoLoaded.toLocaleString('pt-BR')+'</b><span> / </span><b>'+t.adoTotal.toLocaleString('pt-BR')+'</b> pacotes</div>'+
       breakdownRows+
     '</div>'+
   '</div>';
@@ -1171,26 +1239,41 @@ function renderTable(){
 
   var rows = vis.map(function(t){
     var loStr   = t.leftOver > 0
-      ? '<span style="color:var(--red);font-weight:700">'+t.leftOver+'</span>'
-      : '<span style="color:var(--grn)">0</span>';
+      ? '<span style="color:var(--red);font-weight:700;font-size:20px;">'+t.leftOver+'</span>'
+      : '<span style="color:var(--grn);font-size:20px;">0</span>';
 
     var etaStr = t.eta ? t.eta.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--';
     var stdStr = t.std ? t.std.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--';
     var farolOn = isFarolActive(t);
 
+    /* Evolução efetiva: override manual (temporário, até o próximo poll
+       de 5min trazer o real da API) tem prioridade sobre o dado ao vivo */
+    var evoCode = MANUAL_EVO[t.tn] !== undefined ? MANUAL_EVO[t.tn] : t.evolucaoCode;
+    var evoIdx  = EVO_CHAIN.indexOf(evoCode);
+    var hasNext = evoIdx !== -1 && evoIdx < EVO_CHAIN.length-1;
+    var hidden  = HIDDEN_TNS.has(t.tn);
+
+    var tnCell = '<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">'+
+      '<button class="btn-row btn-hide" title="'+(hidden?'Mostrar':'Ocultar')+'" '+
+        'onclick="event.stopPropagation();'+(hidden?'showTrip':'hideTrip')+'(\''+t.tn+'\')">'+(hidden?'👁':'🚫')+'</button>'+
+      '<button class="btn-row btn-next" title="'+(hasNext?'Avançar p/ '+evolucaoLabel(EVO_CHAIN[evoIdx+1])+' (temporário até o próximo poll)':'Sem próximo estado')+'" '+
+        (hasNext?'':'disabled ')+'onclick="event.stopPropagation();advanceEvo(\''+t.tn+'\')">⟳</button>'+
+      '<span>'+t.tn+'</span>'+
+    '</div>';
+
     return '<tr class="row-'+t.status+(farolOn?' row-farol':'')+'">'+
-      '<td class="tn">'+t.tn+'</td>'+
+      '<td class="tn">'+tnCell+'</td>'+
       '<td><span class="dest-label">'+shortDest(t.dest)+'</span></td>'+
-      '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t.driver+'">'+shortDriverName(t.driver)+'</td>'+
-      '<td style="font-size:11px;">'+t.tipologia+'</td>'+
-      '<td>'+evolucaoBadge(t.evolucaoCode)+'</td>'+
+      '<td style="font-size:17px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t.driver+'">'+shortDriverName(t.driver)+'</td>'+
+      '<td style="font-size:17px;">'+t.tipologia+'</td>'+
+      '<td>'+evolucaoBadge(evoCode)+'</td>'+
       '<td>'+statusBadge(t.status)+(farolOn?farolBadge(t):'')+'</td>'+
       '<td>'+donutCell(t)+'</td>'+
       '<td style="text-align:center;">'+loStr+'</td>'+
-      '<td style="text-align:center;font-family:var(--mono);font-size:11px;">'+t.total+'</td>'+
-      '<td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--grn);">'+t.embaladas+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);font-size:18px;">'+t.total+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);font-size:18px;color:var(--grn);">'+t.embaladas+'</td>'+
       '<td>'+
-        '<div style="font-size:10px;color:var(--text2);white-space:nowrap;">'+
+        '<div style="font-size:15px;color:var(--text2);white-space:nowrap;">'+
           'ETA <b style="color:var(--text);font-family:var(--mono);">'+etaStr+'</b>'+
           '<span style="margin:0 4px;">·</span>'+
           'STD <b style="color:var(--text);font-family:var(--mono);">'+stdStr+'</b>'+

@@ -412,6 +412,38 @@ html, body {
 .legend-item { display: flex; align-items: center; gap: 6px; }
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
 
+/* ── PAINEL: trips ainda sem detalhe capturado ──────────────────
+   Só lista trips cujo ob_monitor já mostra estado avançado
+   (Chegou/Carregando/Expedido) — "Atribuído" não vale a pena clicar
+   ainda, não tem left-over relevante pra ver. */
+.pending-box {
+  background: var(--amb-d);
+  border: 1px solid rgba(245,158,11,.3);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  font-size: 11px;
+  color: var(--text2);
+}
+.pending-box-title {
+  font-weight: 700;
+  color: var(--amb);
+  margin-bottom: 6px;
+}
+.pending-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin: 2px 4px 2px 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text);
+}
+
 /* ── DETAIL PANEL ────────────────────────────────────────────── */
 .detail-mini {
   font-size: 11px;
@@ -575,6 +607,8 @@ html, body {
       <div class="chip" id="fe-40" onclick="toggleEvo(40)">Expedido</div>
     </div>
   </div>
+
+  <div id="pending-panel"></div>
 
   <div id="table-wrap">
     <div class="empty">
@@ -751,25 +785,25 @@ var BRIDGE_MONITOR = []; /* ob_monitor — lista de todas as trips visíveis na
    tela (não clicadas individualmente). Usado só como contador informativo
    (quantas trips ainda faltam detalhar), não alimenta o cálculo. */
 
-function importBridge(){
+function importBridge(silent){
   var EXT_ID = 'lnihdebpcnlfoikellnlkeebhphfahlp';
   var btn = document.getElementById('btn-bridge');
   if(typeof chrome==='undefined'||!chrome.runtime||!chrome.runtime.sendMessage){
-    alert('SPX Bridge não detectado. Certifique-se de que a extensão está instalada e ativa em chrome://extensions/');
+    if(!silent) alert('SPX Bridge não detectado. Certifique-se de que a extensão está instalada e ativa em chrome://extensions/');
     return;
   }
-  if(btn) btn.textContent='⚡ Carregando...';
+  if(btn && !silent) btn.textContent='⚡ Carregando...';
   chrome.runtime.sendMessage(EXT_ID,{type:'GET_OB_TRIP_DETAIL'},function(resp){
     if(chrome.runtime.lastError){
-      alert('Erro ao conectar à extensão: '+chrome.runtime.lastError.message);
-      if(btn) btn.textContent='⚡ SPX Bridge';
+      if(!silent) alert('Erro ao conectar à extensão: '+chrome.runtime.lastError.message);
+      if(btn && !silent) btn.textContent='⚡ SPX Bridge';
       return;
     }
     if(!resp||!resp.ok||!resp.ob_trip_detail||!resp.ob_trip_detail.length){
-      alert('SPX Bridge: nenhuma trip detalhada ainda. Na tela Outbound Monitoring '+
+      if(!silent) alert('SPX Bridge: nenhuma trip detalhada ainda. Na tela Outbound Monitoring '+
         'do SPX, clique em cada trip que quiser acompanhar (abre o painel '+
         '"Detalhe da Viagem" e captura os dados), depois tente de novo.');
-      if(btn) btn.textContent='⚡ SPX Bridge';
+      if(btn && !silent) btn.textContent='⚡ SPX Bridge';
       return;
     }
     BRIDGE_TRIP_DETAIL = resp.ob_trip_detail;
@@ -784,10 +818,11 @@ function importBridge(){
       if(badge){
         badge.style.display='';
         badge.textContent = BRIDGE_TRIP_DETAIL.length+' trips detalhadas'+
-          (BRIDGE_MONITOR.length ? ' · '+BRIDGE_MONITOR.length+' na lista' : '');
+          (BRIDGE_MONITOR.length ? ' · '+BRIDGE_MONITOR.length+' na lista' : '')+
+          ' · atualizado '+new Date().toLocaleTimeString('pt-BR');
       }
       if(btn){
-        btn.textContent='⚡ Bridge ✓';
+        btn.textContent='⚡ Live (auto)';
         btn.style.borderColor='var(--grn)';
         btn.style.color='var(--grn)';
       }
@@ -797,6 +832,15 @@ function importBridge(){
     });
   });
 }
+
+/* ── AUTO-REFRESH ────────────────────────────────────────────── */
+/* Puxa do chrome.storage.local a cada 1min automaticamente — a extensão
+   já busca sozinha do SPX a cada 5min (v1.6), aqui só refletimos isso na
+   tela sem precisar de clique nenhum. Modo silencioso: não alerta se a
+   extensão ainda não tiver dado nenhum (evita popup repetido). */
+setInterval(function(){ importBridge(true); }, 60000);
+/* Primeira tentativa automática logo ao abrir a página */
+setTimeout(function(){ importBridge(true); }, 1500);
 
 /* ── COMPUTE ─────────────────────────────────────────────────── */
 /* Fonte única e primária: ob_trip_detail (SPX Bridge v1.5 — clique numa
@@ -1007,7 +1051,38 @@ function shortDriverName(name){
   return first+' '+surname;
 }
 
-/* ── DONUT CELL ──────────────────────────────────────────────── */
+/* ── PAINEL: trips prontas pra detalhar ─────────────────────────
+   Usa o ob_monitor (capturado automático, sem clique) pra achar quais
+   trips já estão em estado avançado (Chegou/Carregando/Expedido) mas
+   ainda não têm ob_trip_detail — essas são as únicas que valem clicar.
+   "Atribuído" (5) fica de fora: ainda não chegou, não tem left-over
+   relevante pra ver ainda. */
+function pendingDetailTrips(){
+  var detailedSet = new Set(BRIDGE_TRIP_DETAIL.map(function(t){return t.trip_number;}));
+  return BRIDGE_MONITOR.filter(function(t){
+    return t.trip_number && !detailedSet.has(t.trip_number) && t.trip_station_status !== 5;
+  });
+}
+
+function renderPendingPanel(){
+  var el = document.getElementById('pending-panel');
+  if(!el) return;
+  if(!BRIDGE_MONITOR.length){ el.innerHTML = ''; return; }
+
+  var pending = pendingDetailTrips();
+  if(!pending.length){ el.innerHTML = ''; return; }
+
+  el.innerHTML =
+    '<div class="pending-box">'+
+      '<div class="pending-box-title">👆 '+pending.length+' trip'+(pending.length>1?'s':'')+
+        ' com estado avançado ainda sem detalhe capturado — vale a pena clicar nelas:</div>'+
+      pending.map(function(t){
+        return '<span class="pending-chip">'+t.trip_number+' · '+
+          shortDest(t.destination_name||'--')+' · '+evolucaoLabel(t.trip_station_status)+
+        '</span>';
+      }).join('')+
+    '</div>';
+}
 function donutCell(t){
   var pct      = t.pct;
   var pctDisp  = Math.min(pct, 100);
@@ -1070,6 +1145,8 @@ function renderTable(){
   if(fcEl) fcEl.innerHTML = farolCount>0
     ? ' <span style="font-size:10px;font-weight:700;color:var(--red);margin-left:10px;animation:pulse-red 1.2s infinite;">🚨 '+farolCount+' prestes a sair com left-over</span>'
     : '';
+
+  renderPendingPanel();
 
   var wrap = document.getElementById('table-wrap');
   if(!vis.length){

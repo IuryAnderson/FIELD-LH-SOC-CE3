@@ -697,6 +697,14 @@ function sortTrips(list){
   });
 }
 
+function localDateStr(d){
+  /* Data no fuso LOCAL do navegador (Brasil = UTC-3), não UTC.
+     toISOString() sempre devolve UTC — uma trip que expediu às 21h locais
+     já virou 00h do dia seguinte em UTC, e passava pelo filtro de Período
+     como se fosse "hoje" mesmo tendo expedido ontem à noite. */
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
 function filteredTrips(){
   var dF=document.getElementById('f-date-from')?document.getElementById('f-date-from').value:'';
   var dT=document.getElementById('f-date-to')?document.getElementById('f-date-to').value:'';
@@ -708,7 +716,7 @@ function filteredTrips(){
        desconhecido sempre aparece, pra não esconder dado por falta de mapa */
     if([5,10,40,50].indexOf(t.evolucaoCode)!==-1 && !F_EVO.has(t.evolucaoCode)) return false;
     if(dV&&t.dest!==dV)return false;
-    if(t.eta){var ed=t.eta.toISOString().slice(0,10);if(dF&&ed<dF)return false;if(dT&&ed>dT)return false;}
+    if(t.eta){var ed=localDateStr(t.eta);if(dF&&ed<dF)return false;if(dT&&ed>dT)return false;}
     return true;
   });
   return sortTrips(list);

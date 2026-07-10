@@ -44,9 +44,8 @@ html, body {
 /* ── HEADER ─────────────────────────────────────────────────── */
 .header {
   background: var(--bg1);
-  border-bottom: 1px solid var(--line);
-  padding: 0 28px;
-  height: 52px;
+  padding: 0 32px;
+  height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -58,27 +57,28 @@ html, body {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 18px;
 }
 
 .logo-mark {
-  width: 28px; height: 28px;
-  background: var(--ora);
-  border-radius: 6px;
+  width: 44px; height: 44px;
+  background: transparent;
+  padding: 0;
+  overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 900; font-size: 14px; color: #fff;
   flex-shrink: 0;
 }
+.logo-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 .header-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
   color: var(--text);
   letter-spacing: -.01em;
 }
 
 .header-sub {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--text3);
   font-family: var(--mono);
 }
@@ -86,16 +86,16 @@ html, body {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .clock {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 16px;
   color: var(--text2);
   background: var(--bg3);
-  padding: 4px 10px;
-  border-radius: 5px;
+  padding: 7px 14px;
+  border-radius: 6px;
   border: 1px solid var(--line);
 }
 
@@ -203,10 +203,10 @@ html, body {
 }
 
 .chip {
-  padding: 7px 15px;
+  padding: 8px 16px;
   border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   cursor: pointer;
   border: 1px solid var(--line);
   background: var(--bg3);
@@ -218,6 +218,15 @@ html, body {
 .chip.active-crit { background: var(--red-d); border-color: var(--red); color: var(--red); }
 .chip.active-neu  { background: var(--ora-d); border-color: var(--ora); color: var(--ora); }
 .chip:hover { border-color: var(--text3); }
+
+/* Ícone do calendário: branco e maior (o navegador desenha ele escuro por
+   padrão — invert(1) inverte pra branco em fundo escuro) */
+.date-in-big::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.4);
+  transform: scale(1.5);
+  cursor: pointer;
+  margin-left: 6px;
+}
 
 /* ── TRIP TABLE ──────────────────────────────────────────────── */
 .trip-table {
@@ -355,6 +364,7 @@ html, body {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: .04em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -388,6 +398,19 @@ html, body {
   0%,100% { opacity: 1; }
   50%      { opacity: .5; }
 }
+
+/* ── BRILHO DINÂMICO DO DONUT ────────────────────────────────────
+   Enquanto a trip ainda não partiu: brilho "respirando", como se
+   estivesse enchendo/atualizando o percentual em tempo real.
+   Depois que parte (Expedido): se ainda estiver vermelho/âmbar (sobrou
+   left-over), vira um alerta piscando — não é mais "enchendo", é aviso
+   de problema definitivo. Se ficou verde (100%), fica parado, sem brilho. */
+@keyframes donut-glow-active {
+  0%,100% { filter: drop-shadow(0 0 4px currentColor); }
+  50%     { filter: drop-shadow(0 0 18px currentColor); }
+}
+.donut-arc-active { animation: donut-glow-active 1.8s ease-in-out infinite; }
+.donut-arc-alert  { animation: pulse-red 1.3s ease-in-out infinite; }
 
 /* ── FAROL: alerta antes de liberar o veículo ───────────────────
    Trip com corte a ≤15min E ainda com left-over > 0 E que ainda não
@@ -539,95 +562,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
-}/* ── SIDEBARS: VISUAL / AVISOS ──────────────────────────────────
-   Tiras verticais fixas na borda direita — clicando abre um painel
-   deslizante. Tira o aviso amarelo e a legenda do fluxo principal pra
-   liberar espaço (cabeçalho de detalhes/filtros maiores). */
-.side-tabs {
-  position: fixed;
-  right: 0;
-  top: 140px;
-  display: flex;
-  flex-direction: column;
-  z-index: 200;
 }
-.side-tab {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  background: var(--bg2);
-  border: 1px solid var(--line);
-  border-right: none;
-  color: var(--text2);
-  padding: 16px 9px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  border-radius: 8px 0 0 8px;
-  margin-bottom: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  transition: all .15s;
-}
-.side-tab:hover { background: var(--bg3); color: var(--text); }
-.side-tab.active { background: var(--ora); color: #fff; border-color: var(--ora); }
-.side-tab-badge {
-  writing-mode: horizontal-tb;
-  background: var(--red);
-  color: #fff;
-  border-radius: 10px;
-  font-size: 10px;
-  padding: 1px 6px;
-  font-weight: 700;
-  animation: pulse-red 1.2s infinite;
-}
-.side-panel {
-  position: fixed;
-  right: -380px;
-  top: 0;
-  bottom: 0;
-  width: 360px;
-  background: var(--bg1);
-  border-left: 1px solid var(--line);
-  box-shadow: -10px 0 28px rgba(0,0,0,.45);
-  z-index: 300;
-  transition: right .25s ease;
-  display: flex;
-  flex-direction: column;
-}
-.side-panel.open { right: 0; }
-.side-panel-hdr {
-  padding: 18px 22px;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--line);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--text2);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-}
-.side-panel-close {
-  background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; line-height: 1;
-}
-.side-panel-close:hover { color: var(--text); }
-.side-panel-body {
-  padding: 20px 22px;
-  overflow-y: auto;
-  flex: 1;
-}
-.side-panel-body .legend {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  font-size: 13px;
-}
-.side-panel-body .legend-dot { width: 10px; height: 10px; }
 
 </style>
 </head>
@@ -636,7 +571,7 @@ html, body {
 <!-- HEADER -->
 <div class="header">
   <div class="header-left">
-    <div class="logo-mark" style="background:var(--ora);padding:2px;overflow:hidden;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAvCAYAAACYECivAAAE0klEQVR4nO2YS4hbZRTHf+e7Nzc3j5lMWulD64xUi6AUlFLd2oWLVkW68LlyJYhbcSOC4KIbdyIuRFwURBFc1I0uuqgWxY1UXRREZdraKePMdJJJJrnP77hIJvNKO7nNBCnkQOByv/Pd++N8//PIlereA8pdZOb/BshqY+BR2xh41DYGHrXddcDusA8QEQ4WPd48spdnJgUvDjAIV3JlPpytc36uTjuxu8Haed+wne7xeyY58/AkxTTmp6bl78BSMnB8wmXGU87OR5y91qAZp7sCPFSE95ULvDVdpKqWd6+G/LDQpB0nADwwVeL1+0u8vN/ncjPhwr9NdmMGGErDzx4oczSfcmYu4vyNeg8W4Eptlc+uNvgnSHhtehLXyNCwMASwMcJDhBgvz3fXa6S6OX4KzDZCfl1JOOqn+O7Q6QIMIAkB9hU9HizmEEC7B1vM5ZgpecwnhmOVPBavu76+D4Si7+ECp+6vcq3WRGTdJ8Hwy80WiR08KXdMOscIL85Uee/wBMamPSQBJAoBsF6+e7+DqSiyhp8mmDjB5gtryz3fhuQ48eMc9SAaGHigCLtqcYIWxiZ9fZygteOLnHC7j+fm0YyZuKOGFcGKAxuOctO6KqqCooQINXVZdQzWAGq5HVEiDjZj7dgxwqpKM4xI8PHWT71ngrDsuJxr5vhqbhUbB4RWmd5T4ZW9Dk86ARWnv0bbGOI0W1MZLHUdF4wDsl0SiuGjBYfZIOTtwxMcr/osRinfL6zyez3k0JS5JXBTDDajJHaOMNBKUkIFr896O1/g6yvzfPrEIR5LlpF6g0PAq2XBTnlImvbVkmJpWiHV3Y6wKgmClf5yT22KVYVe55Weapykf/Zr10sKE+vVZEAbIOmgFSW0EturwRutlLY4cd8e3v9jiUtMsKyCxSCqff2B3trVlSZphhoMA2rYSifCotvbq7GGMwfhk0KRD2ab7CkWecoPOVJwedQXnCTZlqgq3XpdLGeCHRg4tJZ2are9GAABX2PemDI8Vynx83KTy1GOL5aVkxU4PeVRZas0FFBuNIPRACepEiQWcrf2caxlRlaZrgotUX4rCx8vKB4JL1UNua3JpYabUfaRc6DhRx0Hyd2GFhDpHIAByjblWCHm5KTl4s2QxciC3Xw8grIc9u+cQwO3ophau903hRoYrqUuiqAbNOOoIOJQyjm4BjAbd3f8ltrhaIC1W9akD/KfTpl35lK+rBv+MkWi0iRLfplvVgzn6ynHKx5V17B9+IRGkl0SA2k4spYwTsHfnnWHbYvTVcO3K8Ln8zUmDIRWaYvLCweKPF2OcdRuyte1ytvIMKVlAlaEFEOnO2yGntSY58twquxQM2UWY8Wocq+rlAkwvVFz4/NARWlF2TU8EHCsEHY1ujXG0r2Xx7Lfhux3tu7uXwutydFOspe1gTTciBIutaFmcqz1uzv+qWKNw8XIp34HVWKwCKcp566vsBgUeGQihyuGRrtNyfeJk4QoTqiUSwRRhFVL0fdptNq4jiHv5lgNAkoFHxRWWm0aIlxYXiJKsyddpu8SRgTP6RyKtRZjTHeA1971ml9qtVObRXq+a/sskGSdK7uW6a+sVSXYWIrsLa77bt6dDyl33be1MfCobQw8ahsDj9rGwKO2MfCo7T9WqikY32RYNAAAAABJRU5ErkJggg==" style="width:100%;height:100%;object-fit:contain;display:block;"></div>
+    <div class="logo-mark"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAvCAYAAACYECivAAAE0klEQVR4nO2YS4hbZRTHf+e7Nzc3j5lMWulD64xUi6AUlFLd2oWLVkW68LlyJYhbcSOC4KIbdyIuRFwURBFc1I0uuqgWxY1UXRREZdraKePMdJJJJrnP77hIJvNKO7nNBCnkQOByv/Pd++N8//PIlereA8pdZOb/BshqY+BR2xh41DYGHrXddcDusA8QEQ4WPd48spdnJgUvDjAIV3JlPpytc36uTjuxu8Haed+wne7xeyY58/AkxTTmp6bl78BSMnB8wmXGU87OR5y91qAZp7sCPFSE95ULvDVdpKqWd6+G/LDQpB0nADwwVeL1+0u8vN/ncjPhwr9NdmMGGErDzx4oczSfcmYu4vyNeg8W4Eptlc+uNvgnSHhtehLXyNCwMASwMcJDhBgvz3fXa6S6OX4KzDZCfl1JOOqn+O7Q6QIMIAkB9hU9HizmEEC7B1vM5ZgpecwnhmOVPBavu76+D4Si7+ECp+6vcq3WRGTdJ8Hwy80WiR08KXdMOscIL85Uee/wBMamPSQBJAoBsF6+e7+DqSiyhp8mmDjB5gtryz3fhuQ48eMc9SAaGHigCLtqcYIWxiZ9fZygteOLnHC7j+fm0YyZuKOGFcGKAxuOctO6KqqCooQINXVZdQzWAGq5HVEiDjZj7dgxwqpKM4xI8PHWT71ngrDsuJxr5vhqbhUbB4RWmd5T4ZW9Dk86ARWnv0bbGOI0W1MZLHUdF4wDsl0SiuGjBYfZIOTtwxMcr/osRinfL6zyez3k0JS5JXBTDDajJHaOMNBKUkIFr896O1/g6yvzfPrEIR5LlpF6g0PAq2XBTnlImvbVkmJpWiHV3Y6wKgmClf5yT22KVYVe55Weapykf/Zr10sKE+vVZEAbIOmgFSW0EturwRutlLY4cd8e3v9jiUtMsKyCxSCqff2B3trVlSZphhoMA2rYSifCotvbq7GGMwfhk0KRD2ab7CkWecoPOVJwedQXnCTZlqgq3XpdLGeCHRg4tJZ2are9GAABX2PemDI8Vynx83KTy1GOL5aVkxU4PeVRZas0FFBuNIPRACepEiQWcrf2caxlRlaZrgotUX4rCx8vKB4JL1UNua3JpYabUfaRc6DhRx0Hyd2GFhDpHIAByjblWCHm5KTl4s2QxciC3Xw8grIc9u+cQwO3ophau903hRoYrqUuiqAbNOOoIOJQyjm4BjAbd3f8ltrhaIC1W9akD/KfTpl35lK+rBv+MkWi0iRLfplvVgzn6ynHKx5V17B9+IRGkl0SA2k4spYwTsHfnnWHbYvTVcO3K8Ln8zUmDIRWaYvLCweKPF2OcdRuyte1ytvIMKVlAlaEFEOnO2yGntSY58twquxQM2UWY8Wocq+rlAkwvVFz4/NARWlF2TU8EHCsEHY1ujXG0r2Xx7Lfhux3tu7uXwutydFOspe1gTTciBIutaFmcqz1uzv+qWKNw8XIp34HVWKwCKcp566vsBgUeGQihyuGRrtNyfeJk4QoTqiUSwRRhFVL0fdptNq4jiHv5lgNAkoFHxRWWm0aIlxYXiJKsyddpu8SRgTP6RyKtRZjTHeA1971ml9qtVObRXq+a/sskGSdK7uW6a+sVSXYWIrsLa77bt6dDyl33be1MfCobQw8ahsDj9rGwKO2MfCo7T9WqikY32RYNAAAAABJRU5ErkJggg==" style="width:100%;height:100%;object-fit:contain;display:block;"></div>
     <div>
       <div class="header-title">Left-Over Monitor</div>
       <div class="header-sub">SOC-CE3 · Outbound Packaging KPI</div>
@@ -683,16 +618,16 @@ html, body {
   <!-- FILTER BAR -->
   <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
     <div style="display:flex;align-items:center;gap:10px;">
-      <span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);white-space:nowrap;">Período</span>
-      <input type="date" id="f-date-from" oninput="applyFilters()"
-        style="background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text2);font-size:14px;padding:6px 10px;font-family:var(--mono);">
-      <span style="color:var(--text3);font-size:14px;">—</span>
-      <input type="date" id="f-date-to" oninput="applyFilters()"
-        style="background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text2);font-size:14px;padding:6px 10px;font-family:var(--mono);">
+      <span style="font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);white-space:nowrap;">Período</span>
+      <input type="date" id="f-date-from" oninput="applyFilters()" class="date-in-big"
+        style="background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text2);font-size:16px;font-weight:700;padding:7px 12px;font-family:var(--mono);">
+      <span style="color:var(--text3);font-size:16px;">—</span>
+      <input type="date" id="f-date-to" oninput="applyFilters()" class="date-in-big"
+        style="background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text2);font-size:16px;font-weight:700;padding:7px 12px;font-family:var(--mono);">
     </div>
     <div style="width:1px;height:28px;background:var(--line);"></div>
     <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Turno</span>
+      <span style="font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Turno</span>
       <div class="chip active-neu" id="ft-all" onclick="toggleTurno('all')">Todos</div>
       <div class="chip" id="ft-t1" onclick="toggleTurno('T1')">T1</div>
       <div class="chip" id="ft-t2" onclick="toggleTurno('T2')">T2</div>
@@ -700,11 +635,19 @@ html, body {
     </div>
     <div style="width:1px;height:28px;background:var(--line);"></div>
     <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Destino</span>
+      <span style="font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Destino</span>
       <select id="f-dest" onchange="applyFilters()"
-        style="background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text2);font-size:14px;padding:6px 10px;font-family:var(--sans);min-width:160px;">
+        style="background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text2);font-size:16px;font-weight:700;padding:7px 12px;font-family:var(--sans);min-width:160px;">
         <option value="">Todos</option>
       </select>
+    </div>
+    <div style="width:1px;height:28px;background:var(--line);flex-shrink:0;"></div>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--grn)"></div>Meta (100%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--amb)"></div>Atenção (99–99,9%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Crítico (&lt;99%)</div>
+      </div>
     </div>
   </div>
 
@@ -731,33 +674,6 @@ html, body {
       <div class="empty-sub">Conecte o ⚡ SPX Bridge e clique nas trips que quiser acompanhar na tela Outbound Monitoring do SPX.</div>
     </div>
   </div>
-</div>
-
-<!-- SIDEBARS: VISUAL / AVISOS -->
-<div class="side-tabs">
-  <div class="side-tab" id="tab-visual" onclick="toggleSidePanel('visual')">
-    <span>👁</span><span>VISUAL</span>
-  </div>
-  <div class="side-tab" id="tab-avisos" onclick="toggleSidePanel('avisos')">
-    <span>⚠</span><span>AVISOS</span>
-    <span class="side-tab-badge" id="avisos-badge" style="display:none;">0</span>
-  </div>
-</div>
-
-<div class="side-panel" id="side-panel-visual">
-  <div class="side-panel-hdr">Visual <button class="side-panel-close" onclick="closeSidePanels()">✕</button></div>
-  <div class="side-panel-body">
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:var(--grn)"></div>Meta (100%)</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--amb)"></div>Atenção (99–99,9%)</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Crítico (&lt;99%)</div>
-    </div>
-  </div>
-</div>
-
-<div class="side-panel" id="side-panel-avisos">
-  <div class="side-panel-hdr">Avisos <button class="side-panel-close" onclick="closeSidePanels()">✕</button></div>
-  <div class="side-panel-body" id="pending-panel"></div>
 </div>
 
 <script>
@@ -1288,23 +1204,6 @@ function renderPendingPanel(){
   }
 }
 
-function toggleSidePanel(name){
-  var panel = document.getElementById('side-panel-'+name);
-  var tab = document.getElementById('tab-'+name);
-  var isOpen = panel.classList.contains('open');
-  closeSidePanels();
-  if(!isOpen){
-    panel.classList.add('open');
-    tab.classList.add('active');
-  }
-}
-function closeSidePanels(){
-  ['visual','avisos'].forEach(function(name){
-    document.getElementById('side-panel-'+name).classList.remove('open');
-    document.getElementById('tab-'+name).classList.remove('active');
-  });
-}
-
 function donutCell(t){
   var pct      = t.pct;
   var pctDisp  = Math.min(pct, 100);
@@ -1316,6 +1215,11 @@ function donutCell(t){
   var pctInt   = Math.round(pct);
   var pctExact = (pct>=100?'100':pct.toFixed(1))+'%';
 
+  /* Brilho dinâmico: enquanto não partiu, "enchendo" (pulsa o glow).
+     Depois de partir: se sobrou left-over (não ok), pisca como alerta.
+     Se partiu com 100% (ok), fica parado — resolvido, sem mais brilho. */
+  var glowClass = t.partiu ? (t.status !== 'ok' ? 'donut-arc-alert' : '') : 'donut-arc-active';
+
   var svg = '<svg width="80" height="80" viewBox="0 0 80 80">'+
     '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--bg4)" stroke-width="'+sw+'"/>'+
     '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+sw+'"'+
@@ -1323,7 +1227,8 @@ function donutCell(t){
       ' stroke-dashoffset="'+(circ/4).toFixed(2)+'"'+
       ' stroke-linecap="round"'+
       ' transform="rotate(-90 '+cx+' '+cy+')"'+
-      ' style="transition:stroke-dasharray .8s ease;filter:drop-shadow(0 0 5px '+color+'88)"/>'+
+      (glowClass ? ' class="'+glowClass+'"' : '')+
+      ' style="transition:stroke-dasharray .8s ease;color:'+color+';filter:drop-shadow(0 0 5px '+color+'88)"/>'+
     '</svg>';
 
   var breakdownRows = t.breakdown.length
@@ -1408,14 +1313,14 @@ function renderTable(){
     return '<tr class="row-'+t.status+(farolOn?' row-farol':'')+'">'+
       '<td class="tn">'+tnCell+'</td>'+
       '<td><span class="dest-label">'+shortDest(t.dest)+'</span></td>'+
-      '<td style="font-size:17px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t.driver+'">'+shortDriverName(t.driver)+'</td>'+
+      '<td style="font-size:17px;font-weight:700;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t.driver+'">'+shortDriverName(t.driver)+'</td>'+
       '<td style="font-size:17px;">'+t.tipologia+'</td>'+
       '<td>'+evolucaoBadge(evoCode)+'</td>'+
       '<td>'+statusBadge(t.status)+(farolOn?farolBadge(t):'')+'</td>'+
       '<td>'+donutCell(t)+'</td>'+
       '<td style="text-align:center;">'+loStr+'</td>'+
-      '<td style="text-align:center;font-family:var(--mono);font-size:22px;">'+t.total+'</td>'+
-      '<td style="text-align:center;font-family:var(--mono);font-size:22px;color:var(--grn);">'+t.embaladas+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;">'+t.total+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;color:var(--grn);">'+t.embaladas+'</td>'+
       '<td>'+
         '<div style="font-size:18px;color:var(--text2);white-space:nowrap;">'+
           'ETA <b style="color:var(--text);font-family:var(--mono);">'+etaStr+'</b>'+

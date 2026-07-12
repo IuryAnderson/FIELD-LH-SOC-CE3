@@ -505,11 +505,11 @@ tr:hover td{background:var(--bg3);}
         <span style="font-size:11px;">&#9660;</span> Inbound <span class="sb-g-arrow">&#9660;</span>
       </div>
       <div class="sb-group-body open sb-sub" id="grp-dib-body">
-        <label for="fi-in" class="sb-item" id="nav-import-in" style="cursor:pointer;">
+        <div class="sb-item" id="nav-import-in" onclick="importFieldTripLive()" style="cursor:pointer;">
           <span class="ico">&#8659;</span>
-          <span id="lbl-in">Importar Inbound</span>
+          <span id="lbl-in">IN (SPX Bridge Live)</span>
           <span class="sb-badge" id="badge-in">--</span>
-        </label>
+        </div>
         <label for="fi-fin" class="sb-item" id="nav-import-fin" style="cursor:pointer;">
           <span class="ico">&#10003;</span>
           <span id="lbl-fin">Importar Finalizados</span>
@@ -526,11 +526,11 @@ tr:hover td{background:var(--bg3);}
         <span style="font-size:11px;">&#9650;</span> Outbound <span class="sb-g-arrow">&#9660;</span>
       </div>
       <div class="sb-group-body sb-sub" id="grp-dob-body">
-        <label for="fi-out" class="sb-item" id="nav-import-out" style="cursor:pointer;">
+        <div class="sb-item" id="nav-import-out" onclick="importFieldTripLive()" style="cursor:pointer;">
           <span class="ico">&#8657;</span>
-          <span id="lbl-out">Importar Outbound</span>
+          <span id="lbl-out">OUT (SPX Bridge Live)</span>
           <span class="sb-badge" id="badge-out">--</span>
-        </label>
+        </div>
         <label for="fi-tos" class="sb-item" id="nav-import-tos" style="cursor:pointer;">
           <span class="ico">&#9635;</span>
           <span id="lbl-tos">Importar TOs</span>
@@ -557,8 +557,6 @@ tr:hover td{background:var(--bg3);}
 </aside>
 
 <!-- FILE INPUTS -->
-<input type="file" id="fi-in"  accept=".csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
-<input type="file" id="fi-out" accept=".csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 <input type="file" id="fi-fin"   accept=".csv" multiple style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 <input type="file" id="fi-queue" accept=".csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 <input type="file" id="fi-tos"   accept=".csv,.zip" multiple style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
@@ -1081,12 +1079,6 @@ function applyDatePred(){
 }
 
 /* UPLOAD */
-document.getElementById('fi-in').addEventListener('change',function(e){
-  var f=e.target.files&&e.target.files[0];if(f)loadFileIn(f);e.target.value='';
-});
-document.getElementById('fi-out').addEventListener('change',function(e){
-  var f=e.target.files&&e.target.files[0];if(f)loadFileOut(f);e.target.value='';
-});
 document.getElementById('fi-queue').addEventListener('change',function(e){
   var f=e.target.files&&e.target.files[0];if(f)loadFileQueue(f);e.target.value='';
 });
@@ -3918,7 +3910,7 @@ function importSPXBridge(){
      Join chave: route_info.lh_trip_number → t.tn
      ────────────────────────────────────────────────────────────────────────── */
 
-  var EXT_ID = 'enhebdfbifnelgbpmfpoekbjfjokmnhf';
+  var EXT_ID = 'lnihdebpcnlfoikellnlkeebhphfahlp';
 
   if(typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage){
     alert('SPX Bridge: extensão não detectada.\n\nCertifique-se de que:\n1. A extensão SPX CE3 Bridge está instalada\n2. O dashboard está aberto no Chrome (não outro browser)\n3. A extensão está ativa (toggle azul em chrome://extensions/)');
@@ -4273,6 +4265,164 @@ function cleanD(s){if(!s||!s.trim())return'--';var m=s.match(/\]\s*(.+)$/);retur
 function calcStatus(dt,ref){if(!dt)return'semana';var today=new Date(ref.getFullYear(),ref.getMonth(),ref.getDate());var tmrw=new Date(today.getTime()+864e5);var dtDay=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate());if(dt<ref&&dtDay<today)return'vencida';if(dtDay.getTime()===today.getTime())return'hoje';if(dtDay.getTime()===tmrw.getTime())return'amanha';return'semana';}
 function buildRota(o,d){return sCode(o)+'-'+sCode(d);}
 function sCode(s){if(!s)return'?';return s.replace('SoC_CE_Itaitinga','SOC-CE3').replace('SoC_','SOC-').replace('XPT_','XPT-').replace('LM Hub_','LM-').replace(/_/g,'-').replace(/ /g,'-').toUpperCase();}
+
+/* ── FIELD TRIP LIST (SPX Bridge v1.7 — AO VIVO) ────────────────────────────
+   Substitui o CSV lh_trip_br_cost (IN/OUT) por dado ao vivo do endpoint
+   transportation/trip/list_v2, capturado pelo polling ativo da extensão
+   (a cada 5min, sem precisar de clique/upload). Mesma classificação
+   Inbound/Outbound que o parseCSVRaw já usa (CE3 primeira perna=Outbound,
+   última=Inbound) — só troca a fonte de "linha do CSV" pra "trip_station[]
+   do JSON". Retorna o MESMO formato {inbound,outbound} que parseCSVRaw,
+   pra reaproveitar loadFileIn/loadFileOut sem mudar nada nelas.
+
+   CAMPOS AINDA NÃO CONFIRMADOS COM DADO REAL (best-effort, validar quando
+   uma trip Inbound de verdade passar pelo pipeline):
+     - unloadDocked (fica null — não achei equivalente claro no JSON)
+     - toDone/toTotal do Inbound (usando unload_quantity/expect_unload_quantity
+       como aproximação de "done/total"; o CSV tinha uma string "done/total"
+       explícita que pode não ser exatamente a mesma coisa) */
+function buildTripsFromFieldLive(rawList){
+  var CE3 = 'SoC_CE_Itaitinga';
+  var today = new Date(), inbound = [], outbound = [];
+
+  rawList.forEach(function(trip){
+    var legs = (trip.trip_station || []).slice().sort(function(a,b){
+      return (a.sequence_number||99) - (b.sequence_number||99);
+    });
+    if(!legs.length) return;
+    var tn = trip.trip_number;
+    if(!tn) return;
+
+    var firstIsCE3 = legs[0].station_name === CE3;
+    var lastIsCE3  = legs[legs.length-1].station_name === CE3;
+
+    var plate  = (trip.vehicle_plate_number_list && trip.vehicle_plate_number_list[0]) || trip.vehicle_number || '--';
+    var driver = cleanD(trip.driver_name || '');
+    var tipo   = trip.classification_names || '--';
+
+    if(firstIsCE3 && !lastIsCE3){
+      /* OUTBOUND: CE3 é a primeira perna, trip vai pra outro destino */
+      var oRow = legs[0], dRow = legs[1] || legs[0];
+      var schedArr    = oRow.sta          ? new Date(oRow.sta*1000)          : null; /* ETA Origem */
+      var actualArr   = oRow.ata          ? new Date(oRow.ata*1000)          : null;
+      var sched       = oRow.std          ? new Date(oRow.std*1000)          : null; /* CPT/lacre/saída */
+      var actualDep   = oRow.atd          ? new Date(oRow.atd*1000)          : null;
+      var assignTime  = trip.assigned_time ? new Date(trip.assigned_time*1000) : null;
+      var loadingTime = oRow.loading_time  ? new Date(oRow.loading_time*1000)  : null;
+      var loadedTime  = oRow.loaded_time   ? new Date(oRow.loaded_time*1000)   : null;
+      var sealedTime  = oRow.seal_time     ? new Date(oRow.seal_time*1000)     : null;
+      var orders = trip.order_packed_quantity > 0 ? trip.order_packed_quantity : 0;
+      var perfil = trip.vehicle_type_name || '--';
+      var dest   = dRow.station_name;
+      var janela = actualDep ? 'saiu' : calcStatus(sched, today);
+
+      var evolucao = 'pending';
+      if(actualDep || sealedTime) evolucao = 'left';
+      else if(loadedTime || loadingTime) evolucao = 'loading';
+      else if(actualArr) evolucao = 'arrived';
+      else if(assignTime) evolucao = 'assigned';
+
+      outbound.push({
+        tn: tn, tripName: trip.trip_name || '', rota: buildRota(CE3, dest), dest: dest,
+        plate: plate, driver: driver, orders: orders, tipo: tipo, perfil: perfil,
+        schedArr: schedArr, actualArr: actualArr, sched: sched, cpt: sched,
+        actualDep: actualDep, assignTime: assignTime, loadingTime: loadingTime,
+        loadedTime: loadedTime, sealedTime: sealedTime, janela: janela,
+        evolucao: evolucao, patioOB: false, docaOB: '', turnoOB: turnoOf(schedArr)
+      });
+
+    } else if(lastIsCE3 && !firstIsCE3){
+      /* INBOUND: CE3 é a última perna, trip chega de outro destino */
+      var r = legs[legs.length-1];
+      var orig = legs.find(function(l){ return l.station_name !== CE3; }) || legs[0];
+      var origin = orig.station_name;
+
+      var sched2    = r.sta            ? new Date(r.sta*1000)            : null;
+      var actual2   = r.ata            ? new Date(r.ata*1000)            : null;
+      var unsealed  = r.unseal_time    ? new Date(r.unseal_time*1000)    : null;
+      var unloaded  = r.unloaded_time  ? new Date(r.unloaded_time*1000)  : null;
+      var unloadDocked = null; /* sem campo equivalente confirmado ainda */
+
+      /* Exclui trips canceladas/não atribuídas: sem motorista E sem placa
+         (mesma regra do parseCSVRaw) */
+      if(plate === '--' && driver === '--') return;
+
+      var orders2 = trip.order_inbound_quantity > 0 ? trip.order_inbound_quantity
+                  : (trip.order_packed_quantity > 0 ? trip.order_packed_quantity : 0);
+      var toDone  = r.unload_quantity || 0;
+      var toTotal = r.expect_unload_quantity || r.capacity_quantity || 0;
+
+      var evolucao2 = 'pending';
+      if(unloaded) evolucao2 = 'unloaded';
+      else if(unsealed) evolucao2 = 'unseal';
+      else if(actual2) evolucao2 = 'arrived';
+
+      inbound.push({
+        tn: tn, tripName: trip.trip_name || '', rota: buildRota(origin, CE3),
+        agency: trip.agency_name || '--', waitTime: '', origin: origin, plate: plate,
+        driver: driver, orders: orders2, tipo: tipo, sched: sched2, actual: actual2,
+        unsealed: unsealed, unloaded: unloaded, unloadDocked: unloadDocked,
+        janela: calcStatus(sched2, today), evolucao: evolucao2,
+        toDone: toDone, toTotal: toTotal,
+        turnoArrival: turnoOf(actual2), turnoUnseal: turnoOf(unsealed), turnoUnload: turnoOf(unloaded)
+      });
+    }
+    /* trips CE3→CE3 (internas) e sem trip_station são ignoradas, igual o
+       parseCSVRaw já fazia */
+  });
+
+  inbound.sort(function(a,b){ return (a.sched||new Date(9e15)) - (b.sched||new Date(9e15)); });
+  outbound.sort(function(a,b){ return (a.sched||new Date(9e15)) - (b.sched||new Date(9e15)); });
+
+  return {inbound: inbound, outbound: outbound};
+}
+
+function importFieldTripLive(silent){
+  var EXT_ID = 'lnihdebpcnlfoikellnlkeebhphfahlp';
+  var badge = document.getElementById('badge-in');
+  var badgeOut = document.getElementById('badge-out');
+
+  if(typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage){
+    console.warn('[FIELD Bridge] chrome.runtime indisponível — extensão não detectada.');
+    if(!silent) alert('SPX Bridge não detectado. Certifique-se de que a extensão está instalada e ativa em chrome://extensions/');
+    return;
+  }
+
+  chrome.runtime.sendMessage(EXT_ID, {type:'GET_FIELD_TRIP_LIST'}, function(resp){
+    if(chrome.runtime.lastError){
+      console.warn('[FIELD Bridge] Erro ao conectar à extensão:', chrome.runtime.lastError.message);
+      if(!silent) alert('Erro ao conectar à extensão: '+chrome.runtime.lastError.message);
+      return;
+    }
+    if(!resp || !resp.ok || !resp.field_trip_list || !resp.field_trip_list.length){
+      console.warn('[FIELD Bridge] Nenhuma trip em field_trip_list ainda. resp:', resp);
+      if(!silent) alert('SPX Bridge: nenhuma trip capturada ainda. Abra a tela "Viagens de Carga Direta" no SPX (ou espere o próximo ciclo de 5min) e tente de novo.');
+      return;
+    }
+
+    var parsed = buildTripsFromFieldLive(resp.field_trip_list);
+    var fakeFile = {name: 'SPX Bridge (Live)'};
+    loadFileIn(fakeFile, parsed);
+    loadFileOut(fakeFile, parsed);
+
+    if(badge){ badge.textContent = parsed.inbound.length; badge.classList.add('ok'); }
+    if(badgeOut){ badgeOut.textContent = parsed.outbound.length; badgeOut.classList.add('ok'); }
+    var navIn = document.getElementById('nav-import-in'), navOut = document.getElementById('nav-import-out');
+    if(navIn) navIn.style.color = 'var(--grn)';
+    if(navOut) navOut.style.color = 'var(--grn)';
+    var lblIn = document.getElementById('lbl-in'), lblOut = document.getElementById('lbl-out');
+    if(lblIn) lblIn.textContent = 'IN (ao vivo)';
+    if(lblOut) lblOut.textContent = 'OUT (ao vivo)';
+
+    var updStr = resp.ts ? new Date(resp.ts).toLocaleTimeString('pt-BR') : '--';
+    console.log('[FIELD Bridge] '+parsed.inbound.length+' IN · '+parsed.outbound.length+' OUT | última captura: '+updStr);
+  });
+}
+
+/* Auto-refresh: puxa do chrome.storage.local a cada 1min, silencioso.
+   A extensão já busca sozinha do SPX a cada 5min — isso só reflete na tela. */
+setInterval(function(){ importFieldTripLive(true); }, 60000);
+setTimeout(function(){ importFieldTripLive(true); }, 1500);
 
 function parseCSVRaw(text,isFin){
   detectSep(text);

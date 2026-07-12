@@ -4404,6 +4404,7 @@ function importFieldTripLive(silent){
     var fakeFile = {name: 'SPX Bridge (Live)'};
     loadFileIn(fakeFile, parsed);
     loadFileOut(fakeFile, parsed);
+    if(typeof renderAnalysis === 'function') renderAnalysis(); /* Análise Inbound — só recalculava no clique de "Filtrar", agora acompanha o live */
 
     if(badge){ badge.textContent = parsed.inbound.length; badge.classList.add('ok'); }
     if(badgeOut){ badgeOut.textContent = parsed.outbound.length; badgeOut.classList.add('ok'); }

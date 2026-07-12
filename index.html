@@ -857,6 +857,7 @@ tr:hover td{background:var(--bg3);}
 <script>
 var IN=[],OUT=[],docaMap={},QUEUE_MAP={},QUEUE_MAP_OB={};
 var GLOBAL_tnEventsOB={},GLOBAL_plateEventsOB={};/* eventos brutos da fila OB, persistem entre imports para re-enriquecimento */
+var GLOBAL_tnEventsIB={},GLOBAL_plateEventsIB={};/* idem, fila IB */
 var PLANNER_MAP={};/* trip_number -> {tipologia, transportadora, statusPlanner} */
 var STAGE_OUT_MAP={};/* station_name -> {pallets:N, sacas:N, pacotes:N, ado_min:N, ts:Date} — alimentado pelo Google Sheets Stage Out */
 var DOCK_STATE=(function(){
@@ -3279,6 +3280,75 @@ function agencyLabel(a){
   return'<span style="font-weight:600;color:var(--text)">'+a+'</span>';
 }
 
+function applyQueueIBEnrichment(){
+  /* Cruzamento Fila IB (Inbound) usando os eventos globais já capturados
+     (GLOBAL_tnEventsIB/GLOBAL_plateEventsIB) — extraído pra função reutilizável
+     igual o padrão OB, pra poder ser re-executado depois de qualquer refresh
+     que substitua o IN (SPX Bridge Live a cada 1min), sem precisar reimportar
+     o CSV da Fila. */
+  var tnEvents = GLOBAL_tnEventsIB, plateEvents = GLOBAL_plateEventsIB;
+  if(!tnEvents || (!Object.keys(tnEvents).length && !Object.keys(plateEvents||{}).length)) return;
+
+  QUEUE_MAP={};
+  IN.forEach(function(t){
+    if(!t.actual)return;
+    /* Try trip number first, then plate */
+    var evs=tnEvents[t.tn]||(t.plate&&t.plate!=='--'?plateEvents[t.plate]:null);
+    if(!evs||!evs.length)return;
+    /* Find Create or Assign event after Actual Arrival */
+    var createEv=null;
+    for(var i=0;i<evs.length;i++){
+      var act=evs[i].action;
+      if((act==='Create'||act==='Assign')&&evs[i].time>=t.actual){
+        /* Conflict check for plate-based lookup */
+        if(!tnEvents[t.tn]){
+          var cf=false;
+          IN.forEach(function(t2){
+            if(t2.tn===t.tn||t2.plate!==t.plate)return;
+            if(t2.actual&&t2.actual>t.actual&&t2.actual<=evs[i].time)cf=true;
+          });
+          if(cf)return;
+        }
+        createEv=evs[i];break;
+      }
+    }
+    if(!createEv)return;
+    /* Find Occupy after Create/Assign */
+    var occupyEv=null;
+    for(var j=0;j<evs.length;j++){
+      if(evs[j].action==='Occupy'&&evs[j].time>=createEv.time){occupyEv=evs[j];break;}
+    }
+    var bolsao=Math.round((createEv.time-t.actual)/60000);
+    var fila=occupyEv?Math.round((occupyEv.time-createEv.time)/60000):null;
+    QUEUE_MAP[t.tn]={
+      addQTime:  createEv.time,
+      occupyTime:occupyEv?occupyEv.time:null,
+      dock:      occupyEv?occupyEv.dock:createEv.dock,
+      operator:  createEv.operator,
+      bolsaoMins:bolsao>=0?bolsao:null,
+      filaMins:  fila!==null&&fila>=0?fila:null,
+    };
+  });
+
+  /* Enrich IN trips */
+  IN.forEach(function(t){
+    var q=QUEUE_MAP[t.tn];
+    if(!q)return;
+    t.addQTime   = q.addQTime;
+    t.bolsaoMins = q.bolsaoMins;
+    t.filaMins   = q.filaMins;
+    t.operador   = q.operator;
+    if(q.dock&&!docaMap[t.tn])docaMap[t.tn]=q.dock;
+    if(q.addQTime&&!t.unsealed&&t.evolucao==='arrived')t.evolucao='patio';
+    /* Docado IB: occupyTime = veículo fisicamente na doca (Action=Occupy no QueueListLog) */
+    if(q.occupyTime){
+      t.docadoTime=q.occupyTime;
+      t.docadoIB=true;
+      if(t.evolucao==='patio'&&!t.unsealed)t.evolucao='docado';
+    }
+  });
+}
+
 function applyQueueOBEnrichment(){
   /* ── OUTBOUND: cruzamento simetrico ────────────────────────────────────
      Create/Assign no QueueListLog (Arrival Type=LH-Outbound) apos a chegada
@@ -3382,9 +3452,15 @@ function parseQueueListLog(text,f){
   var iAssignD = hdrs.indexOf('Assigned Dock');
   var iOccD    = hdrs.indexOf('Occupied Dock');
 
-  /* Build trip->events and plate->events maps (inbound only) */
-  var tnEvents    = {}; /* keyed by LH Trip Number */
-  var plateEvents = {}; /* keyed by plate, fallback */
+  /* Build trip->events and plate->events maps (inbound only) — GLOBAIS agora
+     (igual o padrão OB), pra o enriquecimento poder ser RE-APLICADO depois
+     de qualquer refresh que substitua o IN (ex: SPX Bridge Live a cada 1min).
+     Sem isso, o enriquecimento só valia até o próximo import/refresh apagar
+     o IN e recriar do zero. */
+  GLOBAL_tnEventsIB    = {};
+  GLOBAL_plateEventsIB = {};
+  var tnEvents    = GLOBAL_tnEventsIB; /* keyed by LH Trip Number */
+  var plateEvents = GLOBAL_plateEventsIB; /* keyed by plate, fallback */
 
   /* Outbound events — guardados em variaveis globais (GLOBAL_tnEventsOB/GLOBAL_plateEventsOB)
      para que o enriquecimento possa ser RE-APLICADO depois, quando trips ganharem actualArr
@@ -3447,64 +3523,7 @@ function parseQueueListLog(text,f){
     });
   });
 
-  QUEUE_MAP={};
-  IN.forEach(function(t){
-    if(!t.actual)return;
-    /* Try trip number first, then plate */
-    var evs=tnEvents[t.tn]||(t.plate&&t.plate!=='--'?plateEvents[t.plate]:null);
-    if(!evs||!evs.length)return;
-    /* Find Create or Assign event after Actual Arrival */
-    var createEv=null;
-    for(var i=0;i<evs.length;i++){
-      var act=evs[i].action;
-      if((act==='Create'||act==='Assign')&&evs[i].time>=t.actual){
-        /* Conflict check for plate-based lookup */
-        if(!tnEvents[t.tn]){
-          var cf=false;
-          IN.forEach(function(t2){
-            if(t2.tn===t.tn||t2.plate!==t.plate)return;
-            if(t2.actual&&t2.actual>t.actual&&t2.actual<=evs[i].time)cf=true;
-          });
-          if(cf)return;
-        }
-        createEv=evs[i];break;
-      }
-    }
-    if(!createEv)return;
-    /* Find Occupy after Create/Assign */
-    var occupyEv=null;
-    for(var j=0;j<evs.length;j++){
-      if(evs[j].action==='Occupy'&&evs[j].time>=createEv.time){occupyEv=evs[j];break;}
-    }
-    var bolsao=Math.round((createEv.time-t.actual)/60000);
-    var fila=occupyEv?Math.round((occupyEv.time-createEv.time)/60000):null;
-    QUEUE_MAP[t.tn]={
-      addQTime:  createEv.time,
-      occupyTime:occupyEv?occupyEv.time:null,
-      dock:      occupyEv?occupyEv.dock:createEv.dock,
-      operator:  createEv.operator,
-      bolsaoMins:bolsao>=0?bolsao:null,
-      filaMins:  fila!==null&&fila>=0?fila:null,
-    };
-  });
-
-  /* Enrich IN trips */
-  IN.forEach(function(t){
-    var q=QUEUE_MAP[t.tn];
-    if(!q)return;
-    t.addQTime   = q.addQTime;
-    t.bolsaoMins = q.bolsaoMins;
-    t.filaMins   = q.filaMins;
-    t.operador   = q.operator;
-    if(q.dock&&!docaMap[t.tn])docaMap[t.tn]=q.dock;
-    if(q.addQTime&&!t.unsealed&&t.evolucao==='arrived')t.evolucao='patio';
-    /* Docado IB: occupyTime = veículo fisicamente na doca (Action=Occupy no QueueListLog) */
-    if(q.occupyTime){
-      t.docadoTime=q.occupyTime;
-      t.docadoIB=true;
-      if(t.evolucao==='patio'&&!t.unsealed)t.evolucao='docado';
-    }
-  });
+  applyQueueIBEnrichment();
 
   /* Aplica o cruzamento Fila OB usando os eventos globais ja capturados.
      Extraido para funcao reutilizavel (applyQueueOBEnrichment) para poder ser
@@ -4325,6 +4344,7 @@ function buildTripsFromFieldLive(rawList){
       outbound.push({
         tn: tn, tripName: trip.trip_name || '', rota: buildRota(CE3, dest), dest: dest,
         plate: plate, driver: driver, orders: orders, tipo: tipo, perfil: perfil,
+        tipologia: perfil, transportadora: trip.agency_name || '--',
         schedArr: schedArr, actualArr: actualArr, sched: sched, cpt: sched,
         actualDep: actualDep, assignTime: assignTime, loadingTime: loadingTime,
         loadedTime: loadedTime, sealedTime: sealedTime, janela: janela,
@@ -4359,7 +4379,8 @@ function buildTripsFromFieldLive(rawList){
 
       inbound.push({
         tn: tn, tripName: trip.trip_name || '', rota: buildRota(origin, CE3),
-        agency: trip.agency_name || '--', waitTime: '', origin: origin, plate: plate,
+        transportadora: trip.agency_name || '--', tipologia: trip.vehicle_type_name || '--',
+        waitTime: '', origin: origin, plate: plate,
         driver: driver, orders: orders2, tipo: tipo, sched: sched2, actual: actual2,
         unsealed: unsealed, unloaded: unloaded, unloadDocked: unloadDocked,
         janela: calcStatus(sched2, today), evolucao: evolucao2,
@@ -4404,6 +4425,18 @@ function importFieldTripLive(silent){
     var fakeFile = {name: 'SPX Bridge (Live)'};
     loadFileIn(fakeFile, parsed);
     loadFileOut(fakeFile, parsed);
+
+    /* CRÍTICO: loadFileIn/loadFileOut SUBSTITUEM os arrays IN/OUT inteiros —
+       qualquer enriquecimento de Fila (Patio/Docado/doca/3PL via Queue) ou
+       Planner aplicado antes se perde nessa troca. Como esse ciclo roda a
+       cada 1min, precisa RE-aplicar os três toda vez, não só na primeira
+       vez que foram importados. As três funções já são seguras de chamar
+       de novo (usam mapas globais persistentes, não dependem de reimportar
+       o CSV). */
+    if(typeof applyQueueIBEnrichment === 'function') applyQueueIBEnrichment();
+    if(typeof applyQueueOBEnrichment === 'function') applyQueueOBEnrichment();
+    if(typeof applyPlannerEnrichment === 'function') applyPlannerEnrichment();
+    renderIn(); renderOut(); renderHandover(); renderObPred();
     if(typeof renderAnalysis === 'function') renderAnalysis(); /* Análise Inbound — só recalculava no clique de "Filtrar", agora acompanha o live */
 
     if(badge){ badge.textContent = parsed.inbound.length; badge.classList.add('ok'); }

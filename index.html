@@ -510,11 +510,6 @@ tr:hover td{background:var(--bg3);}
           <span id="lbl-in">IN (SPX Bridge Live)</span>
           <span class="sb-badge" id="badge-in">--</span>
         </div>
-        <label for="fi-fin" class="sb-item" id="nav-import-fin" style="cursor:pointer;">
-          <span class="ico">&#10003;</span>
-          <span id="lbl-fin">Importar Finalizados</span>
-          <span class="sb-badge" id="badge-fin">--</span>
-        </label>
         <label for="fi-queue" class="sb-item" id="nav-import-queue" style="cursor:pointer;">
           <span class="ico">&#9783;</span>
           <span id="lbl-queue">Importar Fila</span>
@@ -536,11 +531,6 @@ tr:hover td{background:var(--bg3);}
           <span id="lbl-tos">Importar TOs</span>
           <span class="sb-badge" id="badge-tos">--</span>
         </label>
-        <label for="fi-planner" class="sb-item" id="nav-import-planner" style="cursor:pointer;">
-          <span class="ico">&#9783;</span>
-          <span id="lbl-planner">Importar Planner</span>
-          <span class="sb-badge" id="badge-planner">--</span>
-        </label>
         <div class="sb-item" id="nav-spx-bridge" onclick="importSPXBridge()" style="cursor:pointer;">
           <span class="ico">&#9889;</span>
           <span id="lbl-spx-bridge">SPX Bridge</span>
@@ -557,10 +547,8 @@ tr:hover td{background:var(--bg3);}
 </aside>
 
 <!-- FILE INPUTS -->
-<input type="file" id="fi-fin"   accept=".csv" multiple style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 <input type="file" id="fi-queue" accept=".csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 <input type="file" id="fi-tos"   accept=".csv,.zip" multiple style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
-<input type="file" id="fi-planner" accept=".csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 <input type="file" id="fi-stage-out" accept=".csv" style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
 
 <!-- MAIN -->
@@ -1083,12 +1071,6 @@ function applyDatePred(){
 document.getElementById('fi-queue').addEventListener('change',function(e){
   var f=e.target.files&&e.target.files[0];if(f)loadFileQueue(f);e.target.value='';
 });
-document.getElementById('fi-fin').addEventListener('change',function(e){
-  var files=e.target.files;if(files&&files.length)loadFileFin(files);e.target.value='';
-});
-document.getElementById('fi-planner').addEventListener('change',function(e){
-  var f=e.target.files&&e.target.files[0];if(f)loadFilePlanner(f);e.target.value='';
-});
 document.getElementById('fi-tos').addEventListener('change',function(e){
   var files=e.target.files;if(files&&files.length)loadFileTos(files);e.target.value='';
 });
@@ -1142,115 +1124,6 @@ function loadFileOut(f,parsed){
   }
   if(parsed){process(null);}
   else{reader.onload=function(ev){process(ev.target.result);};reader.readAsText(f,'UTF-8');}
-}
-
-function loadFileFin(files){
-  /* Aceita FileList (multiplos arquivos) ou um unico File — processa em sequencia,
-     cada arquivo faz merge no IN/OUT antes do proximo comecar. Cobre o caso de
-     subir Expedidos + Finalizados juntos no mesmo clique. */
-  var fileArr=files instanceof FileList?Array.prototype.slice.call(files):[files];
-  var totalMergedIn=0,totalMergedOut=0,totalAddedIn=0,totalAddedOut=0;
-  var lastFile=fileArr[fileArr.length-1];
-  var idx=0;
-
-  function processNext(){
-    if(idx>=fileArr.length){finishAll();return;}
-    var f=fileArr[idx];
-    var reader=new FileReader();
-    reader.onload=function(ev){
-      var parsed=parseCSVRaw(ev.target.result,true);
-      var mergedIn=0,mergedOut=0,addedIn=0,addedOut=0;
-
-      var inMap={};
-      IN.forEach(function(t){inMap[t.tn]=t;});
-      var outMap={};
-      OUT.forEach(function(t){outMap[t.tn]=t;});
-
-      parsed.inbound.forEach(function(t){
-        if(inMap[t.tn]){
-          var ex=inMap[t.tn];
-          if(t.actual)  ex.actual  =t.actual;
-          if(t.unsealed)ex.unsealed=t.unsealed;
-          if(t.unloaded)ex.unloaded=t.unloaded;
-          if(t.orders>0&&ex.orders===0)ex.orders=t.orders;
-          if(ex.unloaded)ex.evolucao='unloaded';
-          else if(ex.unsealed)ex.evolucao='unseal';
-          else if(ex.actual)ex.evolucao='arrived';
-          else ex.evolucao='pending';
-          mergedIn++;
-        } else {
-          IN.push(t);
-          inMap[t.tn]=t;
-          addedIn++;
-        }
-      });
-
-      parsed.outbound.forEach(function(t){
-        if(outMap[t.tn]){
-          var ex=outMap[t.tn];
-          if(t.actualDep) ex.actualDep =t.actualDep;
-          if(t.loadedTime)ex.loadedTime=t.loadedTime;
-          if(t.sealedTime)ex.sealedTime=t.sealedTime;
-          if(t.actualArr&&!ex.actualArr)ex.actualArr=t.actualArr;
-          if(t.assignTime&&!ex.assignTime)ex.assignTime=t.assignTime;
-          if(t.orders>0&&ex.orders===0)ex.orders=t.orders;
-          if(ex.actualDep||ex.sealedTime)ex.evolucao='left';
-          else if(ex.loadedTime||ex.loadingTime)ex.evolucao='loading';
-          else if(ex.actualArr)ex.evolucao='arrived';
-          else if(ex.assignTime)ex.evolucao='assigned';
-          else ex.evolucao='pending';
-          mergedOut++;
-        } else {
-          OUT.push(t);
-          outMap[t.tn]=t;
-          addedOut++;
-        }
-      });
-
-      totalMergedIn+=mergedIn;totalMergedOut+=mergedOut;
-      totalAddedIn+=addedIn;totalAddedOut+=addedOut;
-
-      idx++;
-      processNext();
-    };
-    reader.readAsText(f,'UTF-8');
-  }
-
-  function finishAll(){
-    /* Re-aplica o cruzamento da Fila OB: trips que ganharam actualArr agora
-       (via este import) podem ter eventos de fila ja capturados anteriormente
-       que ainda nao tinham sido cruzados — sem isso, patioOBTime nunca seria
-       calculado para elas. */
-    applyQueueOBEnrichment();
-
-    IN.sort(function(a,b){return (a.sched||new Date(9e15))-(b.sched||new Date(9e15));});
-    OUT.sort(function(a,b){return (a.sched||new Date(9e15))-(b.sched||new Date(9e15));});
-
-    var unloaded=IN.filter(function(t){return t.evolucao==='unloaded';}).length;
-    var totalIn=totalMergedIn+totalAddedIn,totalOut=totalMergedOut+totalAddedOut;
-
-    setNavDone('nav-import-fin','lbl-fin','badge-fin',lastFile,
-      'IN:'+totalIn+' OUT:'+totalOut);
-    document.getElementById('badge-fin').textContent=
-      'IN:'+totalIn+' OUT:'+totalOut;
-
-    document.getElementById('pill-in').innerHTML=
-      'Inbound <span class="hi">'+IN.length+'</span>';
-    document.getElementById('pill-out').innerHTML=
-      'Outbound <span class="hi-grn">'+OUT.length+'</span>';
-    document.getElementById('in-stats').classList.add('show');
-    document.getElementById('out-stats').classList.add('show');
-
-    applyPlannerEnrichment();renderIn();renderOut();renderObPred();renderHandover();
-
-    var msg=(fileArr.length>1?fileArr.length+' arquivos mesclados:\n':'Finalizados mesclados:\n');
-    msg+='  Inbound: '+totalMergedIn+' atualizados, '+totalAddedIn+' novos\n';
-    msg+='  Outbound: '+totalMergedOut+' atualizados, '+totalAddedOut+' novos\n';
-    msg+='  Descarregados: '+unloaded;
-    alert(msg);
-  }
-
-  processNext();
 }
 
 function setNavDone(navId,lblId,badgeId,f,count){
@@ -3356,7 +3229,7 @@ function applyQueueOBEnrichment(){
      e o inseriu na fila de doca outbound.
      IMPORTANTE: usa GLOBAL_tnEventsOB/GLOBAL_plateEventsOB (persistentes),
      nao variaveis locais — por isso pode ser chamada de novo (ex: depois de
-     loadFileFin) sem precisar reimportar o QueueListLog. */
+     importFieldTripLive) sem precisar reimportar o QueueListLog. */
   var tnEventsOB=GLOBAL_tnEventsOB,plateEventsOB=GLOBAL_plateEventsOB;
   QUEUE_MAP_OB={};
   OUT.forEach(function(t){
@@ -3841,85 +3714,6 @@ function loadFileTos(files){
 }
 /* ── FIM TOS PARSER ─────────────────────────────────────────── */
 
-
-/* ── PLANNER PARSER ─────────────────────────────────────────── */
-function loadFilePlanner(f){
-  var reader=new FileReader();
-  reader.onload=function(ev){parsePlannerCSV(ev.target.result,f);};
-  reader.readAsText(f,'UTF-8');
-}
-
-function parsePlannerCSV(text,f){
-  /* Filtra origem CE3 e destino CE3 separadamente para enriquecer OUT e IN.
-     Campos usados: trip_number, planned_vehicle, used_agency_name, status_agrupado.
-     Atualiza: t.tipologia, t.transportadora, t.statusPlanner em OUT e IN.
-     Tambem recalcula obCapacity com tipologia real. */
-  var lines=text.split('\n').filter(function(l){return l.trim();});
-  if(!lines.length)return;
-  var sep=lines[0].indexOf(';')>=0?';':',';
-  var hdrs=lines[0].split(sep).map(function(h){return h.replace(/^\uFEFF/,'').trim().replace(/^"|"$/g,'');});
-
-  var iTN   = hdrs.indexOf('trip_number');
-  var iOrig = hdrs.indexOf('origin');
-  var iDest = hdrs.indexOf('destination');
-  var iPlan = hdrs.indexOf('planned_vehicle');
-  var iAgen = hdrs.indexOf('used_agency_name');
-  var iStat = hdrs.indexOf('status_agrupado');
-  if(iTN<0||iOrig<0)return;
-
-  var CE3='SoC_CE_Itaitinga';
-  PLANNER_MAP={};
-
-  lines.slice(1).forEach(function(l){
-    var v=[];var cur='',q=false;
-    for(var i=0;i<l.length;i++){
-      var c=l[i];
-      if(c==='"'){q=!q;}
-      else if(c===sep&&!q){v.push(cur.trim());cur='';}
-      else{cur+=c;}
-    }
-    v.push(cur.trim());
-    var orig=(v[iOrig]||'').trim();
-    var dest=(v[iDest]||'').trim();
-    if(orig!==CE3&&dest!==CE3)return;
-    var tn=(v[iTN]||'').trim();
-    if(!tn)return;
-    var tipologia=(v[iPlan]||'').trim().toUpperCase();
-    var transportadora=(v[iAgen]||'').trim();
-    var statusPlanner=(v[iStat]||'').trim().toUpperCase();
-    PLANNER_MAP[tn]={tipologia:tipologia,transportadora:transportadora,statusPlanner:statusPlanner,isOB:orig===CE3};
-  });
-
-  /* Enriquecer OUT */
-  var enrichedOB=0;
-  OUT.forEach(function(t){
-    var p=PLANNER_MAP[t.tn];
-    if(!p||!p.isOB)return;
-    t.tipologia=p.tipologia;
-    t.transportadora=p.transportadora;
-    if(p.statusPlanner)t.statusPlanner=p.statusPlanner;
-    enrichedOB++;
-  });
-
-  /* Enriquecer IN */
-  var enrichedIB=0;
-  IN.forEach(function(t){
-    var p=PLANNER_MAP[t.tn];
-    if(!p||p.isOB)return;
-    t.tipologia=p.tipologia;
-    t.transportadora=p.transportadora;
-    if(p.statusPlanner)t.statusPlanner=p.statusPlanner;
-    enrichedIB++;
-  });
-
-  var totalMap=Object.keys(PLANNER_MAP).length;
-  setNavDone('nav-import-planner','lbl-planner','badge-planner',f,totalMap);
-  document.getElementById('badge-planner').textContent='IB:'+enrichedIB+' OB:'+enrichedOB;
-
-  applyPlannerEnrichment();renderIn();renderOut();renderObPred();
-  alert('Planner importado:\n  '+totalMap+' trips mapeadas (CE3)\n  Inbound enriquecido: '+enrichedIB+'\n  Outbound enriquecido: '+enrichedOB);
-}
-/* ── FIM PLANNER PARSER ─────────────────────────────────────── */
 
 function importSPXBridge(){
   /* ── SPX Bridge v2 ─────────────────────────────────────────────────────────

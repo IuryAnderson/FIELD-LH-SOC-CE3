@@ -4333,10 +4333,19 @@ function buildTripsFromFieldLive(rawList){
       var orders = trip.order_packed_quantity > 0 ? trip.order_packed_quantity : 0;
       var perfil = trip.vehicle_type_name || '--';
       var dest   = dRow.station_name;
-      var janela = actualDep ? 'saiu' : calcStatus(sched, today);
+
+      /* Confirmado com evidência real (12/07): quando a trip chega em
+         Finalizado (trip_status=100), o atd/seal_time da perna podem
+         voltar a zerar — só o status em si continua confiável. Por isso
+         não dá pra confiar só em atd>0 pra saber que a trip partiu. */
+      var DEPARTED_STATUS_CODES = [40, 90, 100];
+      var departedByStatus = DEPARTED_STATUS_CODES.indexOf(trip.trip_status) !== -1 ||
+                              DEPARTED_STATUS_CODES.indexOf(oRow.trip_station_status) !== -1;
+
+      var janela = (actualDep || departedByStatus) ? 'saiu' : calcStatus(sched, today);
 
       var evolucao = 'pending';
-      if(actualDep || sealedTime) evolucao = 'left';
+      if(actualDep || sealedTime || departedByStatus) evolucao = 'left';
       else if(loadedTime || loadingTime) evolucao = 'loading';
       else if(actualArr) evolucao = 'arrived';
       else if(assignTime) evolucao = 'assigned';
@@ -4372,8 +4381,17 @@ function buildTripsFromFieldLive(rawList){
       var toDone  = r.unload_quantity || 0;
       var toTotal = r.expect_unload_quantity || r.capacity_quantity || 0;
 
+      /* Mesma lógica do Outbound (trip_status/trip_station_status 40/90/100
+         como sinal de conclusão, já que unloaded_time pode zerar em
+         Finalizado) — AINDA NÃO CONFIRMADO se os códigos valem igual pro
+         lado Inbound especificamente. Aplicado por precaução; validar com
+         uma trip Inbound real que já tenha sido descarregada e arquivada. */
+      var DEPARTED_STATUS_CODES_IB = [40, 90, 100];
+      var unloadedByStatus = DEPARTED_STATUS_CODES_IB.indexOf(trip.trip_status) !== -1 ||
+                              DEPARTED_STATUS_CODES_IB.indexOf(r.trip_station_status) !== -1;
+
       var evolucao2 = 'pending';
-      if(unloaded) evolucao2 = 'unloaded';
+      if(unloaded || unloadedByStatus) evolucao2 = 'unloaded';
       else if(unsealed) evolucao2 = 'unseal';
       else if(actual2) evolucao2 = 'arrived';
 

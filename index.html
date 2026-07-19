@@ -22,6 +22,36 @@
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;}
 .app{display:flex;height:100vh;overflow:hidden;}
 
+/* TEMA CLARO — só na view Análise Inbound, pra aprovação antes de aplicar
+   no resto. Redefine as MESMAS variáveis, só localmente dentro dessa
+   view — como quase tudo no CSS já usa var(--bg)/var(--text) etc, isso
+   troca a paleta inteira sem duplicar regra nenhuma. As cores de acento
+   (--ora/--grn/--red/--blu/--amb/--pur) continuam saturadas, só os fundos
+   "-d" (tingidos, pensados pra fundo escuro) ficam mais opacos pra não
+   sumir no branco. */
+#view-analysis{
+  --bg:#ffffff;--bg2:#f7f7f6;--bg3:#f0f0ee;--bg4:#e8e8e4;--bg5:#dcdcd7;
+  --line:rgba(0,0,0,.08);--line2:rgba(0,0,0,.14);
+  --text:#1a1a18;--text2:#55554f;--text3:#87877e;
+  --ora-d:rgba(242,101,34,.12);
+  --grn-d:rgba(34,197,94,.14);
+  --red-d:rgba(239,68,68,.14);
+  --blu-d:rgba(59,130,246,.14);
+  --amb-d:rgba(245,158,11,.16);
+  --pur-d:rgba(139,92,246,.14);
+  background:var(--bg);
+}
+/* Classes de badge/texto com cor FIXA no código (pensadas pro fundo
+   escuro) — reescapadas aqui só dentro dessa view, pra manter contraste
+   legível em fundo branco sem tocar nas outras telas que usam as MESMAS
+   classes. Cores calculadas dinamicamente em JS (barras de progresso,
+   status computados) ainda não entram aqui — ficam pro próximo passo. */
+#view-analysis .b-amb,#view-analysis .ev-unseal,#view-analysis .evo-loading,
+#view-analysis .ho-ev-badge.unseal,#view-analysis .loss-badge.warn,
+#view-analysis .cd-warn,#view-analysis .ob-label.warn{color:#92620a;}
+#view-analysis .b-blu,#view-analysis .ev-arrived,#view-analysis .evo-arrived,
+#view-analysis .ho-ev-badge.arrived,#view-analysis .ob-label.pend{color:#1d5fb8;}
+
 /* SIDEBAR */
 .sidebar{width:var(--sw);flex-shrink:0;background:var(--bg2);border-right:1px solid var(--line);display:flex;flex-direction:column;}
 .sb-logo{padding:14px 14px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;}

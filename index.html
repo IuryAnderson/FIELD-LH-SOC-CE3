@@ -844,6 +844,7 @@ tr:hover td{background:var(--bg3);}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 var IN=[],OUT=[],docaMap={},QUEUE_MAP={},QUEUE_MAP_OB={};
+var LIVE_TO_DETAILS={};/* trip_number -> {dockNumber, operator} — vem do SPX Bridge v1.31, doca+operador reais por TO, coletados no momento do Unseal (não depende do CSV manual da Fila) */
 var GLOBAL_tnEventsOB={},GLOBAL_plateEventsOB={};/* eventos brutos da fila OB, persistem entre imports para re-enriquecimento */
 var GLOBAL_tnEventsIB={},GLOBAL_plateEventsIB={};/* idem, fila IB */
 var PLANNER_MAP={};/* trip_number -> {tipologia, transportadora, statusPlanner} */
@@ -2239,11 +2240,15 @@ function renderHandover(){
   h+='<div class="ho-section"><div class="ho-sec-hdr"><span class="ho-sec-title t-patio">No patio - aguardando descarga</span><span class="ho-sec-count">'+noPatio.length+'</span></div>';
   if(!noPatio.length){h+='<div class="ho-empty">Nenhum veiculo no patio.</div>';}
   else{noPatio.forEach(function(t,i){
-    var doca=docaMap[t.tn]||'';
+    var liveDetail=LIVE_TO_DETAILS[t.tn];
+    var doca=docaMap[t.tn]||(liveDetail&&liveDetail.dockNumber)||'';
     var etaStr=t.sched?fmtD(t.sched)+' '+fmtT(t.sched):'--';
     var isLate=t.sched&&t.sched<now&&t.evolucao!=='unloaded';
     h+='<div class="ho-card"><span class="ho-num">'+(i+1)+'.</span>';
     h+='<div><div class="ho-plate">'+t.plate+'</div><div class="ho-driver">'+t.driver+'</div>';
+    if(liveDetail&&liveDetail.operator){
+      h+='<div class="ho-driver" style="font-size:10px;color:var(--text3,#888);">🙋 '+liveDetail.operator+'</div>';
+    }
     h+='<div class="ho-eta">ETA <span class="'+(isLate?'ev-late':'ev-ok')+'">'+etaStr+'</span></div></div>';
     h+='<div class="ho-right">';
     h+='<input class="doca-input'+(doca?' filled':'')+'" type="text" placeholder="Ex: IN 126" maxlength="10" value="'+doca+'" data-tn="'+t.tn+'" oninput="saveDoca(this)">';
@@ -2371,11 +2376,13 @@ function exportHandover(){
   var evLbl={arrived:'CHEGOU',unseal:'ABERTO',unloaded:'DESCARREGANDO',pending:'PENDENTE'};
   var lines=['INBOUND','Passagem T1 -> T2 -- '+fmtD(now)+' '+fmtT(now),''];
   noPatio.forEach(function(t,i){
-    var doca=docaMap[t.tn]||'';
+    var liveDetail=LIVE_TO_DETAILS[t.tn];
+    var doca=docaMap[t.tn]||(liveDetail&&liveDetail.dockNumber)||'';
     lines.push((i+1)+'. '+t.plate);
     lines.push(t.driver);
     lines.push(t.sched?fmtD(t.sched)+' '+fmtT(t.sched)+'h':'--');
     lines.push((evLbl[t.evolucao]||'--')+(doca?' -- '+doca:''));
+    if(liveDetail&&liveDetail.operator) lines.push('Operador: '+liveDetail.operator);
     lines.push('');
   });
   if(aCaminho.length){
@@ -4265,10 +4272,29 @@ function importFieldTripLive(silent){
   });
 }
 
+/* v1.31 (SPX Bridge): doca+operador reais por TO (Inbound), coletados no
+   momento do Unseal — não depende do CSV manual da Fila. Preenche
+   LIVE_TO_DETAILS, usado no renderHandover() como PRÉ-preenchimento do
+   campo de doca (não sobrescreve o que já foi digitado manualmente) e
+   pra mostrar o operador responsável. */
+function importInboundToDetails(silent){
+  var EXT_ID = 'ingiepianpipilnaiaehghdkjfhkgale';
+  if(typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) return;
+  chrome.runtime.sendMessage(EXT_ID, {type:'GET_INBOUND_TO_DETAILS'}, function(resp){
+    if(chrome.runtime.lastError){
+      console.warn('[FIELD Bridge] Erro ao buscar inbound_to_details:', chrome.runtime.lastError.message);
+      return;
+    }
+    if(!resp || !resp.ok) return;
+    LIVE_TO_DETAILS = resp.inbound_to_details || {};
+    if(typeof renderHandover === 'function') renderHandover();
+  });
+}
+
 /* Auto-refresh: puxa do chrome.storage.local a cada 1min, silencioso.
    A extensão já busca sozinha do SPX a cada 5min — isso só reflete na tela. */
-setInterval(function(){ importFieldTripLive(true); }, 60000);
-setTimeout(function(){ importFieldTripLive(true); }, 1500);
+setInterval(function(){ importFieldTripLive(true); importInboundToDetails(true); }, 60000);
+setTimeout(function(){ importFieldTripLive(true); importInboundToDetails(true); }, 1500);
 
 function parseCSVRaw(text,isFin){
   detectSep(text);

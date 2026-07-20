@@ -1671,16 +1671,18 @@ function exportSeatalkIn(){
       }
     }
 
-    /* Situação texto — referência única MAX(actual,sched), rótulo muda por estágio */
+    /* Situação texto — referência ÚNICA e ininterrupta desde a chegada
+       (MAX(actual,sched)), CORRIGIDO (20/07) — só o rótulo muda por
+       estágio, o relógio nunca reinicia. */
     var sitStr='';
     if(t.evolucao==='unloaded'){
       sitStr='Concluído';
     } else if(t.evolucao!=='pending'){
-      var ref,sitLabel;
-      if(t.evolucao==='arrived'){ref=cdRef(t);sitLabel='Aguardando fila';}
-      else if(t.evolucao==='patio'){ref=cdRef(t);sitLabel='Aguardando doca';}
-      else if(t.evolucao==='docado'){ref=t.unloadDocked||cdRef(t);sitLabel='Aguardando abertura';}
-      else{ref=t.unsealed||cdRef(t);sitLabel='Em descarga';}
+      var ref=cdRef(t),sitLabel;
+      if(t.evolucao==='arrived')sitLabel='Aguardando fila';
+      else if(t.evolucao==='patio')sitLabel='Aguardando doca';
+      else if(t.evolucao==='docado')sitLabel='Aguardando abertura';
+      else sitLabel='Em descarga';
       if(t.sched&&now<t.sched){
         var ataMin=Math.round((t.sched-now)/60000);
         sitStr='ETA em '+cdFmtMin(ataMin)+' (early \u2014 di\u00E1ria n\u00E3o iniciada)';
@@ -2474,24 +2476,21 @@ function cdCell(t){
            '<div class="cd-sub">ETA '+pad(t.sched.getDate())+'/'+pad(t.sched.getMonth()+1)+' '+pad(t.sched.getHours())+':'+pad(t.sched.getMinutes())+'</div>';
   }
 
-  /* Referência e rótulo por estágio:
-     arrived / patio → MAX(actual, sched): diária contada desde a chegada
-     docado          → unloadDocked: desde quando entrou na doca de descarga
-     unseal          → unsealed: desde quando o deslacre foi iniciado
-     Proteção early em todos: se sched > now, relógio ainda não disparou. */
-  var ref, subLabel;
+  /* Referência ÚNICA e ininterrupta desde a chegada — MAX(actual,sched).
+     CORRIGIDO (20/07, Iury): antes, "docado" e "unseal" trocavam a
+     referência pra unloadDocked/unsealed, fazendo o regressivo de 8h/12h
+     "recomeçar" a cada mudança de estágio. O subLabel (texto descritivo)
+     continua mudando por estágio — só o RELÓGIO fica fixo desde a
+     chegada, sempre. */
+  var ref=cdRef(t), subLabel;
   if(t.evolucao==='arrived'){
-    ref=cdRef(t); /* MAX(actual, sched) */
     subLabel='Aguardando fila';
   } else if(t.evolucao==='patio'){
-    ref=cdRef(t); /* MAX(actual, sched) — diária conta desde a chegada */
     subLabel='Aguardando doca';
   } else if(t.evolucao==='docado'){
-    ref=t.unloadDocked||cdRef(t); /* desde quando entrou na doca */
     subLabel='Aguardando abertura';
   } else {
     /* unseal */
-    ref=t.unsealed||cdRef(t); /* desde quando o deslacre foi iniciado */
     subLabel='Em descarga';
   }
 

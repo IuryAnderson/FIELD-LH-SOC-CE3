@@ -1915,7 +1915,19 @@ function obCapacity(tipo,perfil,tipologia){
 }
 
 function isCancelada(t){
-  /* 1a prioridade: statusPlanner do Planner (campo authoritative).
+  /* NOVO (21/07): mesma lógica já confirmada com 3 trips reais canceladas
+     no bot (background.js v1.43/v1.44) — trip_status=100 E (nunca chegou
+     OU remark preenchido) é o sinal mais confiável, bateu com 3 motivos
+     de cancelamento diferentes já vistos na prática (nunca chegou;
+     chegou mas remanejada por otimização; chegou mas cancelada por falta
+     de pacote). Checado ANTES do Planner/heurística — é mais direto e
+     não depende de CSV manual. arrived cobre tanto Outbound (actualArr)
+     quanto Inbound (actual), já que essa função atende os dois tipos. */
+  var arrived = t.actualArr || t.actual;
+  if(t.tripStatus === 100 && (!arrived || (t.remark && t.remark.trim() !== ''))){
+    return true;
+  }
+  /* 1a prioridade (fallback): statusPlanner do Planner (campo authoritative).
      Considera CANCELADO, INFRUTÍFERA, NO SHOW, NÃO CONSUMIDA como terminais. */
   if(t.statusPlanner){
     var sp=t.statusPlanner;
@@ -4196,7 +4208,8 @@ function buildTripsFromFieldLive(rawList){
         schedArr: schedArr, actualArr: actualArr, sched: sched, cpt: sched,
         actualDep: actualDep, assignTime: assignTime, loadingTime: loadingTime,
         loadedTime: loadedTime, sealedTime: sealedTime, janela: janela,
-        evolucao: evolucao, patioOB: false, docaOB: '', turnoOB: turnoOf(schedArr)
+        evolucao: evolucao, patioOB: false, docaOB: '', turnoOB: turnoOf(schedArr),
+        tripStatus: trip.trip_status, remark: trip.remark || ''
       });
 
     } else if(lastIsCE3 && !firstIsCE3){
@@ -4242,7 +4255,8 @@ function buildTripsFromFieldLive(rawList){
         unsealed: unsealed, unloaded: unloaded, unloadDocked: unloadDocked,
         janela: calcStatus(sched2, today), evolucao: evolucao2,
         toDone: toDone, toTotal: toTotal,
-        turnoArrival: turnoOf(actual2), turnoUnseal: turnoOf(unsealed), turnoUnload: turnoOf(unloaded)
+        turnoArrival: turnoOf(actual2), turnoUnseal: turnoOf(unsealed), turnoUnload: turnoOf(unloaded),
+        tripStatus: trip.trip_status, remark: trip.remark || ''
       });
     }
     /* trips CE3→CE3 (internas) e sem trip_station são ignoradas, igual o

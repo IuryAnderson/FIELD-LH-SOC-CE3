@@ -709,7 +709,7 @@ function filteredTrips(){
   var list = TRIPS.filter(function(t){
     /* Canceladas não são bloqueadas pelo filtro de STATUS (crit/warn/ok) —
        visibilidade delas é controlada só pelo filtro de EVOLUÇÃO abaixo */
-    if(t.status!=='cancelado' && !F_STATUS.has(t.status)) return false;
+    if(t.status!=='cancelado' && t.status!=='sem_dado' && !F_STATUS.has(t.status)) return false;
     if(t.turno!=='--' && !F_TURNO.has(t.turno)) return false;
     /* Só filtra por evolução se o código for um dos confirmados — código
        desconhecido sempre aparece, pra não esconder dado por falta de mapa */
@@ -899,6 +899,23 @@ function sumPackString(s){
    (nunca chegou OU remark não-vazio). Para OUTBOUND mantém as duas
    condições. "Chegou" aqui = leg de CE3 (origem) já tem ata preenchido —
    ausência disso indica que o motorista nunca apareceu pra carregar. */
+/* Deriva evolução (mesmos códigos 5/50/10/40 do ob_trip_detail) direto dos
+   timestamps do leg CE3 no field_trip_list — fonte muito mais completa e
+   confiável que o ob_trip_detail, que confirmadamente NÃO captura todas as
+   trips (4 de 12 trips reais testadas em 29/07 sequer apareciam nele, e
+   uma ficou presa em status antigo). */
+function evolucaoOrdinal(code){
+  var m = {5:0, 50:1, 10:2, 40:3};
+  return m[code] !== undefined ? m[code] : -1;
+}
+function evolucaoFromFieldLeg(ce3Leg){
+  if(!ce3Leg) return 5;
+  if(ce3Leg.seal_time && ce3Leg.seal_time > 0) return 40;   /* Expedido */
+  if(ce3Leg.loading_time && ce3Leg.loading_time > 0) return 10; /* Carregando */
+  if(ce3Leg.ata && ce3Leg.ata > 0) return 50;                /* Chegou */
+  return 5;                                                   /* Atribuído */
+}
+
 function isCanceladaField(trip){
   if(trip.trip_status !== 100) return false;
   var ce3Leg = (trip.trip_station||[]).find(function(l){
@@ -911,6 +928,16 @@ function isCanceladaField(trip){
 
 function compute(){
   if(!BRIDGE_TRIP_DETAIL.length && !BRIDGE_FIELD_LIST.length){ TRIPS = []; updateKPIs(); renderTable(); return; }
+
+  var fieldByTn = {};
+  BRIDGE_FIELD_LIST.forEach(function(trip){
+    if(trip.trip_number) fieldByTn[trip.trip_number] = trip;
+  });
+  function ce3LegOf(trip){
+    return (trip.trip_station||[]).find(function(l){
+      return l.station_code==='SOC-CE3' || l.station===13813;
+    });
+  }
 
   TRIPS = BRIDGE_TRIP_DETAIL.map(function(trip){
     var tn = trip.trip_number || '';
@@ -942,7 +969,19 @@ function compute(){
       turno = (hm>=325 && hm<=825) ? 'T1' : (hm>=826 && hm<=1325) ? 'T2' : 'T3';
     }
 
+    /* v1.60: reconcilia com field_trip_list — se o CE3.ata/loading_time/
+       seal_time mostrarem MAIS progresso que o trip_station_status do
+       ob_trip_detail, usa isso em vez do valor (possivelmente antigo/
+       congelado) do ob_trip_detail. Estado só anda pra frente, nunca
+       volta — então "mais avançado" é sempre a leitura mais confiável. */
     var evolucaoCode = trip.trip_station_status;
+    var fieldTrip = fieldByTn[tn];
+    if(fieldTrip){
+      var fieldEvo = evolucaoFromFieldLeg(ce3LegOf(fieldTrip));
+      if(evolucaoOrdinal(fieldEvo) > evolucaoOrdinal(evolucaoCode)){
+        evolucaoCode = fieldEvo;
+      }
+    }
 
     return {
       tn: tn,
@@ -956,20 +995,27 @@ function compute(){
     };
   });
 
-  /* Mescla trips CANCELADAS vindas do field_trip_list — o ob_trip_detail
-     nunca as inclui (SPX remove da visão de Outbound Monitoring), então
-     é a única forma de saber que existiram e sumiram. Só considera trips
-     cuja origem é CE3 (relevante pro Left-Over/Outbound), e evita
-     duplicar quem por acaso já apareça no ob_trip_detail. */
+  /* Mescla trips do field_trip_list que NÃO estão no ob_trip_detail —
+     duas situações diferentes: (a) CANCELADAS (ob_trip_detail nunca inclui
+     canceladas, SPX remove da visão de Outbound Monitoring) e (b) trips
+     normais que o auto-poll do ob_trip_detail simplesmente não capturou
+     ainda (confirmado real: 4 de 12 trips expedidas em 29/07 sequer
+     apareciam lá). Ambas precisam aparecer — sem isso, "Expedido"/
+     "Atribuído" ficam sistematicamente subcontados. */
   var jaPresentes = new Set(TRIPS.map(function(t){return t.tn;}));
+  var JANELA_MS = 48*3600*1000; /* field_trip_list guarda até 7 dias de
+     Finalizado/Cancelado (FIELD_FINALIZADO_BEFORE_H=168h no bot) — sem
+     esse limite, a mesclagem reprocessa dias de histórico a cada ciclo de
+     auto-refresh (1min), causando delay. 48h cobre "hoje" com folga pra
+     virada de turno T3. */
+  var agora = Date.now();
   BRIDGE_FIELD_LIST.forEach(function(trip){
     var tn = trip.trip_number || '';
     if(!tn || jaPresentes.has(tn)) return;
-    var ce3Leg = (trip.trip_station||[]).find(function(l){
-      return l.station_code==='SOC-CE3' || l.station===13813;
-    });
+    var ce3Leg = ce3LegOf(trip);
     if(!ce3Leg) return; /* não é uma trip de origem CE3, irrelevante aqui */
-    if(!isCanceladaField(trip)) return;
+    var refTime = (ce3Leg.sta||ce3Leg.std||trip.ctime||0) * 1000;
+    if(!refTime || (agora - refTime) > JANELA_MS) return; /* fora da janela recente */
 
     var eta   = ce3Leg.sta ? new Date(ce3Leg.sta * 1000) : null;
     var std   = ce3Leg.std ? new Date(ce3Leg.std * 1000) : null;
@@ -979,18 +1025,33 @@ function compute(){
       var hm=eta.getHours()*60+eta.getMinutes();
       turno = (hm>=325 && hm<=825) ? 'T1' : (hm>=826 && hm<=1325) ? 'T2' : 'T3';
     }
+    var dest = (trip.next_station_name_list && trip.next_station_name_list[1]) || '--';
 
-    TRIPS.push({
-      tn: tn,
-      dest: (trip.next_station_name_list && trip.next_station_name_list[1]) || '--',
-      driver: trip.driver_name || '--',
-      tipologia: trip.vehicle_type_name || '--',
-      eta: eta, std: std, corte: corte,
-      total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
-      status: 'cancelado', turno: turno, evolucaoCode: -1,
-      partiu: false,
-      motivo: trip.remark || 'não informado, nunca teve chegada registrada'
-    });
+    if(isCanceladaField(trip)){
+      TRIPS.push({
+        tn: tn, dest: dest, driver: trip.driver_name || '--',
+        tipologia: trip.vehicle_type_name || '--',
+        eta: eta, std: std, corte: corte,
+        total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
+        status: 'cancelado', turno: turno, evolucaoCode: -1,
+        partiu: false,
+        motivo: trip.remark || 'não informado, nunca teve chegada registrada'
+      });
+    } else {
+      /* Trip normal, mas o ob_trip_detail ainda não capturou o detalhe de
+         embalagem dela — mostra a evolução correta (derivada do
+         field_trip_list, sempre confiável), mas sem inventar números de
+         TOs/Left-Over que não temos. Status próprio 'sem_dado', nunca
+         entra nos KPIs (mesmo tratamento de 'cancelado'). */
+      TRIPS.push({
+        tn: tn, dest: dest, driver: trip.driver_name || '--',
+        tipologia: trip.vehicle_type_name || '--',
+        eta: eta, std: std, corte: corte,
+        total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
+        status: 'sem_dado', turno: turno, evolucaoCode: evolucaoFromFieldLeg(ce3Leg),
+        partiu: !!(ce3Leg.seal_time && ce3Leg.seal_time > 0)
+      });
+    }
     jaPresentes.add(tn);
   });
 
@@ -1015,7 +1076,7 @@ function updateKPIs(){
   /* Canceladas NUNCA entram nos KPIs (não fazem sentido pra Left-Over de
      packaging), mesmo se o usuário tiver ligado o filtro de visualização
      delas na tabela — isso é só pra visibilidade operacional. */
-  var vis0=filteredTrips().filter(function(t){return t.status!=='cancelado';});
+  var vis0=filteredTrips().filter(function(t){return t.status!=='cancelado' && t.status!=='sem_dado';});
   var geralPct   = totalTOs > 0 ? (totalEmb/totalTOs*100) : 100;
   var geralStatus= geralPct >= 100?'ok':geralPct>=99?'warn':'crit';
 
@@ -1028,7 +1089,7 @@ function updateKPIs(){
     geralStatus==='warn'?'⚠ Atenção — próximo da meta':
     '✗ Abaixo do mínimo — ação imediata';
 
-  document.getElementById('kpi-trips').textContent = TRIPS.filter(function(t){return t.status!=='cancelado';}).length;
+  document.getElementById('kpi-trips').textContent = TRIPS.filter(function(t){return t.status!=='cancelado' && t.status!=='sem_dado';}).length;
   document.getElementById('kpi-trips-sub').textContent =
     vis0.filter(function(t){return t.status==='crit';}).length+' críticas · '+
     vis0.filter(function(t){return t.status==='warn';}).length+' em atenção';
@@ -1073,6 +1134,7 @@ function statusBadge(status){
   if(status==='ok')   return '<span class="badge badge-ok"><span class="dot"></span>META</span>';
   if(status==='warn') return '<span class="badge badge-warn"><span class="dot"></span>ATENÇÃO</span>';
   if(status==='cancelado') return '<span class="badge badge-cancel">🚫 CANCELADO</span>';
+  if(status==='sem_dado') return '<span class="badge badge-cancel">⏳ SEM DADO</span>';
   return '<span class="badge badge-crit"><span class="dot"></span>CRÍTICO</span>';
 }
 
@@ -1192,10 +1254,25 @@ function donutCell(t){
           '<span class="pack-qty" style="color:'+color+'">'+it.qty+'</span>'+
         '</div>';
       }).join('')
-    : '<div class="pack-row">'+
-        '<span class="pack-dot" style="background:var(--grn)"></span>'+
-        '<span class="pack-label" style="color:var(--grn)">Tudo carregado ✓</span>'+
-      '</div>';
+    : (t.status==='cancelado'
+        ? '<div class="pack-row">'+
+            '<span class="pack-dot" style="background:var(--text3)"></span>'+
+            '<span class="pack-label" style="color:var(--text3)">Trip cancelada</span>'+
+          '</div>'
+        : t.status==='sem_dado'
+        ? '<div class="pack-row">'+
+            '<span class="pack-dot" style="background:var(--text3)"></span>'+
+            '<span class="pack-label" style="color:var(--text3)">Aguardando detalhe de embalagem</span>'+
+          '</div>'
+        : (pct>=100
+            ? '<div class="pack-row">'+
+                '<span class="pack-dot" style="background:var(--grn)"></span>'+
+                '<span class="pack-label" style="color:var(--grn)">Tudo carregado ✓</span>'+
+              '</div>'
+            : '<div class="pack-row">'+
+                '<span class="pack-dot" style="background:var(--text3)"></span>'+
+                '<span class="pack-label" style="color:var(--text3)">Sem detalhamento</span>'+
+              '</div>'));
 
   return '<div class="prog-cell">'+
     '<div class="donut-wrap" title="'+pctExact+'">'+svg+

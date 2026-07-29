@@ -44,8 +44,9 @@ html, body {
 /* ── HEADER ─────────────────────────────────────────────────── */
 .header {
   background: var(--bg1);
-  padding: 0 32px;
-  height: 76px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 28px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -57,28 +58,27 @@ html, body {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
 }
 
 .logo-mark {
-  width: 44px; height: 44px;
-  background: transparent;
-  padding: 0;
-  overflow: hidden;
+  width: 28px; height: 28px;
+  background: var(--ora);
+  border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 14px; color: #fff;
   flex-shrink: 0;
 }
-.logo-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 .header-title {
-  font-size: 19px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text);
   letter-spacing: -.01em;
 }
 
 .header-sub {
-  font-size: 14px;
+  font-size: 11px;
   color: var(--text3);
   font-family: var(--mono);
 }
@@ -86,16 +86,16 @@ html, body {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .clock {
   font-family: var(--mono);
-  font-size: 16px;
+  font-size: 12px;
   color: var(--text2);
   background: var(--bg3);
-  padding: 7px 14px;
-  border-radius: 6px;
+  padding: 4px 10px;
+  border-radius: 5px;
   border: 1px solid var(--line);
 }
 
@@ -184,13 +184,12 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
-  margin-top: 28px;
-  min-height: 44px;
+  margin-bottom: 14px;
+  margin-top: 24px;
 }
 
 .section-title {
-  font-size: 15px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -199,14 +198,14 @@ html, body {
 
 .filter-bar {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .chip {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 16px;
-  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
   border: 1px solid var(--line);
   background: var(--bg3);
@@ -218,15 +217,6 @@ html, body {
 .chip.active-crit { background: var(--red-d); border-color: var(--red); color: var(--red); }
 .chip.active-neu  { background: var(--ora-d); border-color: var(--ora); color: var(--ora); }
 .chip:hover { border-color: var(--text3); }
-
-/* Ícone do calendário: branco e maior (o navegador desenha ele escuro por
-   padrão — invert(1) inverte pra branco em fundo escuro) */
-.date-in-big::-webkit-calendar-picker-indicator {
-  filter: invert(1) brightness(1.4);
-  transform: scale(1.5);
-  cursor: pointer;
-  margin-left: 6px;
-}
 
 /* ── TRIP TABLE ──────────────────────────────────────────────── */
 .trip-table {
@@ -242,8 +232,8 @@ html, body {
 }
 
 .trip-table th {
-  padding: 12px 16px;
-  font-size: 13px;
+  padding: 10px 14px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -271,54 +261,27 @@ html, body {
 .trip-table tbody tr:hover .badge-ok   { box-shadow: 0 0 14px rgba(34,197,94,.55); }
 .trip-table th.sortable { cursor: pointer; user-select: none; }
 .trip-table th.sortable:hover { color: var(--text); }
-.sort-arrow { opacity: .5; margin-left: 3px; font-size: 11px; }
+.sort-arrow { opacity: .5; margin-left: 3px; font-size: 9px; }
 .sort-arrow.active { opacity: 1; color: var(--ora); }
 
 .trip-table td {
-  padding: 13px 16px;
-  font-size: 15px;
+  padding: 11px 14px;
+  font-size: 12px;
   color: var(--text2);
   vertical-align: middle;
 }
 
 .trip-table td.tn {
   font-family: var(--mono);
-  font-size: 19px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text);
 }
 
 .dest-label {
   font-weight: 600;
-  font-size: 19px;
   color: var(--text);
 }
-
-/* ── AÇÕES DE LINHA (ocultar / avançar evolução) ────────────────
-   Mesmo padrão do Dash SOC (tnCellOB). Ocultar é só visual — a trip
-   continua sendo capturada pelo polling ativo, só some da tabela.
-   Avançar é um override temporário, sobrescrito no próximo poll (5min). */
-.btn-row {
-  border: none;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  transition: all .15s;
-  flex-shrink: 0;
-}
-.btn-row:hover { background: var(--bg4); }
-.btn-hide { color: var(--text); }
-.btn-hide:hover { color: var(--red); background: var(--red-d); }
-.btn-next { color: var(--text); }
-.btn-next:hover { color: var(--grn); background: var(--grn-d); }
-.btn-next[disabled] { opacity: .3; cursor: default; pointer-events: none; }
 
 /* ── BARRA DE PROGRESSO ──────────────────────────────────────── */
 .prog-wrap {
@@ -358,13 +321,12 @@ html, body {
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border-radius: 5px;
-  font-size: 15px;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: .04em;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -376,16 +338,18 @@ html, body {
 .badge-evo-chegou { background: var(--blu-d); color: var(--blu);   border: 1px solid rgba(59,130,246,.25); }
 .badge-evo-carreg { background: var(--amb-d); color: var(--amb);   border: 1px solid rgba(245,158,11,.25); }
 .badge-evo-exped  { background: var(--grn-d); color: var(--grn);   border: 1px solid rgba(34,197,94,.25); }
+.badge-evo-cancel { background: var(--bg4);   color: var(--text3); border: 1px solid var(--line); }
+.badge-cancel     { background: var(--bg4);   color: var(--text3); border: 1px solid var(--line); }
 
-.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 /* ── COUNTDOWN ───────────────────────────────────────────────── */
 .countdown {
   font-family: var(--mono);
-  font-size: 19px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 6px 12px;
-  border-radius: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 
@@ -399,19 +363,6 @@ html, body {
   50%      { opacity: .5; }
 }
 
-/* ── BRILHO DINÂMICO DO DONUT ────────────────────────────────────
-   Enquanto a trip ainda não partiu: brilho "respirando", como se
-   estivesse enchendo/atualizando o percentual em tempo real.
-   Depois que parte (Expedido): se ainda estiver vermelho/âmbar (sobrou
-   left-over), vira um alerta piscando — não é mais "enchendo", é aviso
-   de problema definitivo. Se ficou verde (100%), fica parado, sem brilho. */
-@keyframes donut-glow-active {
-  0%,100% { filter: drop-shadow(0 0 4px currentColor); }
-  50%     { filter: drop-shadow(0 0 18px currentColor); }
-}
-.donut-arc-active { animation: donut-glow-active 1.8s ease-in-out infinite; }
-.donut-arc-alert  { animation: pulse-red 1.3s ease-in-out infinite; }
-
 /* ── FAROL: alerta antes de liberar o veículo ───────────────────
    Trip com corte a ≤15min E ainda com left-over > 0 E que ainda não
    partiu. Diferente do countdown genérico (que já pisca abaixo de 20min
@@ -422,9 +373,9 @@ html, body {
   align-items: center;
   gap: 4px;
   margin-top: 6px;
-  padding: 4px 9px;
+  padding: 3px 7px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 700;
   background: var(--red-d);
   color: var(--red);
@@ -522,28 +473,21 @@ html, body {
 .donut-pct small { font-size: 12px; font-weight: 600; margin-left: 1px; }
 .pack-frac {
   font-family: var(--mono);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text);
-  margin-bottom: 4px;
-}
-.pack-frac span { color: var(--text3); font-weight: 400; }
-.ado-frac {
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--text2);
   margin-bottom: 5px;
 }
-.ado-frac b { color: var(--text); font-weight: 700; }
+.pack-frac span { color: var(--text3); font-weight: 400; }
 .pack-row {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.7;
   white-space: nowrap;
 }
-.pack-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.pack-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .pack-label { color: var(--text2); }
 .pack-qty { font-family: var(--mono); font-weight: 700; margin-left: 2px; }
 .prog-cell {
@@ -563,7 +507,6 @@ html, body {
   align-items: center;
   gap: 6px;
 }
-
 </style>
 </head>
 <body>
@@ -571,7 +514,7 @@ html, body {
 <!-- HEADER -->
 <div class="header">
   <div class="header-left">
-    <div class="logo-mark"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAvCAYAAACYECivAAAE0klEQVR4nO2YS4hbZRTHf+e7Nzc3j5lMWulD64xUi6AUlFLd2oWLVkW68LlyJYhbcSOC4KIbdyIuRFwURBFc1I0uuqgWxY1UXRREZdraKePMdJJJJrnP77hIJvNKO7nNBCnkQOByv/Pd++N8//PIlereA8pdZOb/BshqY+BR2xh41DYGHrXddcDusA8QEQ4WPd48spdnJgUvDjAIV3JlPpytc36uTjuxu8Haed+wne7xeyY58/AkxTTmp6bl78BSMnB8wmXGU87OR5y91qAZp7sCPFSE95ULvDVdpKqWd6+G/LDQpB0nADwwVeL1+0u8vN/ncjPhwr9NdmMGGErDzx4oczSfcmYu4vyNeg8W4Eptlc+uNvgnSHhtehLXyNCwMASwMcJDhBgvz3fXa6S6OX4KzDZCfl1JOOqn+O7Q6QIMIAkB9hU9HizmEEC7B1vM5ZgpecwnhmOVPBavu76+D4Si7+ECp+6vcq3WRGTdJ8Hwy80WiR08KXdMOscIL85Uee/wBMamPSQBJAoBsF6+e7+DqSiyhp8mmDjB5gtryz3fhuQ48eMc9SAaGHigCLtqcYIWxiZ9fZygteOLnHC7j+fm0YyZuKOGFcGKAxuOctO6KqqCooQINXVZdQzWAGq5HVEiDjZj7dgxwqpKM4xI8PHWT71ngrDsuJxr5vhqbhUbB4RWmd5T4ZW9Dk86ARWnv0bbGOI0W1MZLHUdF4wDsl0SiuGjBYfZIOTtwxMcr/osRinfL6zyez3k0JS5JXBTDDajJHaOMNBKUkIFr896O1/g6yvzfPrEIR5LlpF6g0PAq2XBTnlImvbVkmJpWiHV3Y6wKgmClf5yT22KVYVe55Weapykf/Zr10sKE+vVZEAbIOmgFSW0EturwRutlLY4cd8e3v9jiUtMsKyCxSCqff2B3trVlSZphhoMA2rYSifCotvbq7GGMwfhk0KRD2ab7CkWecoPOVJwedQXnCTZlqgq3XpdLGeCHRg4tJZ2are9GAABX2PemDI8Vynx83KTy1GOL5aVkxU4PeVRZas0FFBuNIPRACepEiQWcrf2caxlRlaZrgotUX4rCx8vKB4JL1UNua3JpYabUfaRc6DhRx0Hyd2GFhDpHIAByjblWCHm5KTl4s2QxciC3Xw8grIc9u+cQwO3ophau903hRoYrqUuiqAbNOOoIOJQyjm4BjAbd3f8ltrhaIC1W9akD/KfTpl35lK+rBv+MkWi0iRLfplvVgzn6ynHKx5V17B9+IRGkl0SA2k4spYwTsHfnnWHbYvTVcO3K8Ln8zUmDIRWaYvLCweKPF2OcdRuyte1ytvIMKVlAlaEFEOnO2yGntSY58twquxQM2UWY8Wocq+rlAkwvVFz4/NARWlF2TU8EHCsEHY1ujXG0r2Xx7Lfhux3tu7uXwutydFOspe1gTTciBIutaFmcqz1uzv+qWKNw8XIp34HVWKwCKcp566vsBgUeGQihyuGRrtNyfeJk4QoTqiUSwRRhFVL0fdptNq4jiHv5lgNAkoFHxRWWm0aIlxYXiJKsyddpu8SRgTP6RyKtRZjTHeA1971ml9qtVObRXq+a/sskGSdK7uW6a+sVSXYWIrsLa77bt6dDyl33be1MfCobQw8ahsDj9rGwKO2MfCo7T9WqikY32RYNAAAAABJRU5ErkJggg==" style="width:100%;height:100%;object-fit:contain;display:block;"></div>
+    <div class="logo-mark">S</div>
     <div>
       <div class="header-title">Left-Over Monitor</div>
       <div class="header-sub">SOC-CE3 · Outbound Packaging KPI</div>
@@ -607,7 +550,7 @@ html, body {
     <div class="kpi-sub" id="kpi-emb-sub">Dentro do prazo de corte</div>
   </div>
   <div class="kpi-card neutral">
-    <div class="kpi-eyebrow">Left-Over (TOs)</div>
+    <div class="kpi-eyebrow">Left-Over (pacotes)</div>
     <div class="kpi-value neu" id="kpi-lo">--</div>
     <div class="kpi-sub" id="kpi-lo-sub">TOs não embaladas no corte</div>
   </div>
@@ -616,32 +559,32 @@ html, body {
 <!-- MAIN -->
 <div class="main">
   <!-- FILTER BAR -->
-  <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <span style="font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);white-space:nowrap;">Período</span>
-      <input type="date" id="f-date-from" oninput="applyFilters()" class="date-in-big"
-        style="background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text2);font-size:16px;font-weight:700;padding:7px 12px;font-family:var(--mono);">
-      <span style="color:var(--text3);font-size:16px;">—</span>
-      <input type="date" id="f-date-to" oninput="applyFilters()" class="date-in-big"
-        style="background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text2);font-size:16px;font-weight:700;padding:7px 12px;font-family:var(--mono);">
-    </div>
-    <div style="width:1px;height:28px;background:var(--line);"></div>
+  <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
     <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Turno</span>
+      <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);white-space:nowrap;">Período</span>
+      <input type="date" id="f-date-from" oninput="applyFilters()"
+        style="background:var(--bg3);border:1px solid var(--line);border-radius:5px;color:var(--text2);font-size:11px;padding:4px 8px;font-family:var(--mono);">
+      <span style="color:var(--text3);font-size:11px;">—</span>
+      <input type="date" id="f-date-to" oninput="applyFilters()"
+        style="background:var(--bg3);border:1px solid var(--line);border-radius:5px;color:var(--text2);font-size:11px;padding:4px 8px;font-family:var(--mono);">
+    </div>
+    <div style="width:1px;height:24px;background:var(--line);"></div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Turno</span>
       <div class="chip active-neu" id="ft-all" onclick="toggleTurno('all')">Todos</div>
       <div class="chip" id="ft-t1" onclick="toggleTurno('T1')">T1</div>
       <div class="chip" id="ft-t2" onclick="toggleTurno('T2')">T2</div>
       <div class="chip" id="ft-t3" onclick="toggleTurno('T3')">T3</div>
     </div>
-    <div style="width:1px;height:28px;background:var(--line);"></div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Destino</span>
+    <div style="width:1px;height:24px;background:var(--line);"></div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);">Destino</span>
       <select id="f-dest" onchange="applyFilters()"
-        style="background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--text2);font-size:16px;font-weight:700;padding:7px 12px;font-family:var(--sans);min-width:160px;">
+        style="background:var(--bg3);border:1px solid var(--line);border-radius:5px;color:var(--text2);font-size:11px;padding:4px 8px;font-family:var(--sans);min-width:140px;">
         <option value="">Todos</option>
       </select>
     </div>
-    <div style="width:1px;height:28px;background:var(--line);flex-shrink:0;"></div>
+    <div style="width:1px;height:24px;background:var(--line);flex-shrink:0;"></div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
       <div class="legend">
         <div class="legend-item"><div class="legend-dot" style="background:var(--grn)"></div>Meta (100%)</div>
@@ -664,8 +607,11 @@ html, body {
       <div class="chip" id="fe-50" onclick="toggleEvo(50)">Chegou</div>
       <div class="chip" id="fe-10" onclick="toggleEvo(10)">Carregando</div>
       <div class="chip" id="fe-40" onclick="toggleEvo(40)">Expedido</div>
+      <div class="chip" id="fe--1" onclick="toggleEvo(-1)">🚫 Cancelado</div>
     </div>
   </div>
+
+  <div id="pending-panel"></div>
 
   <div id="table-wrap">
     <div class="empty">
@@ -679,32 +625,6 @@ html, body {
 <script>
 /* ── GLOBALS ──────────────────────────────────────────────────── */
 var TRIPS     = []; /* computed trip summaries */
-/* Ocultar/avançar status (item pedido pelo Iury, mesmo padrão do Dash SOC).
-   HIDDEN_TNS: puramente visual, não apaga dado nenhum — a trip continua
-   sendo capturada pelo polling ativo, só não aparece na tabela.
-   MANUAL_EVO: override visual da Evolução. IMPORTANTE: como aqui os dados
-   são AO VIVO (polling a cada 5min), esse avanço é só temporário — assim
-   que o próximo ciclo trouxer o trip_station_status real da API, ele
-   sobrescreve o override automaticamente (evolucaoCode é recalculado do
-   zero em cada compute()). Serve pra cobrir a janela de até 5min entre
-   uma mudança real no SPX e o polling perceber. */
-var HIDDEN_TNS = new Set();
-var MANUAL_EVO = {};
-var EVO_CHAIN = [5,50,10,40]; /* Atribuído→Chegou→Carregando→Expedido */
-
-function hideTrip(tn){ HIDDEN_TNS.add(tn); updateKPIs(); renderTable(); }
-function showTrip(tn){ HIDDEN_TNS.delete(tn); updateKPIs(); renderTable(); }
-
-function advanceEvo(tn){
-  var t = TRIPS.find(function(x){ return x.tn === tn; });
-  if(!t) return;
-  var cur = MANUAL_EVO[tn] !== undefined ? MANUAL_EVO[tn] : t.evolucaoCode;
-  var idx = EVO_CHAIN.indexOf(cur);
-  if(idx === -1 || idx >= EVO_CHAIN.length-1) return; /* já no último estado, ou código desconhecido */
-  MANUAL_EVO[tn] = EVO_CHAIN[idx+1];
-  renderTable();
-}
-
 /* Filtros multi-seleção: dentro de cada grupo é OR (Crítico OU Atenção),
    entre grupos é AND (Status E Turno E Destino) — cumulativos entre si */
 var F_STATUS = new Set(['crit','warn','ok']);
@@ -736,12 +656,14 @@ function toggleTurno(t){
   updateKPIs();renderTable();
 }
 function toggleEvo(e){
+  /* v1.60: "Cancelado" (-1) fica de FORA do "Todos" — Iury só quer ver
+     canceladas quando clicar explicitamente no chip, não junto do resto */
   if(e === 'all'){ F_EVO = new Set([5,10,40,50]); }
   else { F_EVO.has(e) ? F_EVO.delete(e) : F_EVO.add(e); }
-  ['all',5,10,40,50].forEach(function(k){
+  ['all',5,10,40,50,-1].forEach(function(k){
     var el = document.getElementById('fe-'+k);
     if(!el) return;
-    var active = k==='all' ? F_EVO.size===4 : F_EVO.has(k);
+    var active = k==='all' ? (F_EVO.size===4 && !F_EVO.has(-1)) : F_EVO.has(k);
     el.className = 'chip'+(active?' active-neu':'');
   });
   updateKPIs();renderTable();
@@ -780,27 +702,20 @@ function sortTrips(list){
   });
 }
 
-function localDateStr(d){
-  /* Data no fuso LOCAL do navegador (Brasil = UTC-3), não UTC.
-     toISOString() sempre devolve UTC — uma trip que expediu às 21h locais
-     já virou 00h do dia seguinte em UTC, e passava pelo filtro de Período
-     como se fosse "hoje" mesmo tendo expedido ontem à noite. */
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-}
-
 function filteredTrips(){
   var dF=document.getElementById('f-date-from')?document.getElementById('f-date-from').value:'';
   var dT=document.getElementById('f-date-to')?document.getElementById('f-date-to').value:'';
   var dV=document.getElementById('f-dest')?document.getElementById('f-dest').value:'';
   var list = TRIPS.filter(function(t){
-    if(HIDDEN_TNS.has(t.tn)) return false;
-    if(!F_STATUS.has(t.status)) return false;
+    /* Canceladas não são bloqueadas pelo filtro de STATUS (crit/warn/ok) —
+       visibilidade delas é controlada só pelo filtro de EVOLUÇÃO abaixo */
+    if(t.status!=='cancelado' && !F_STATUS.has(t.status)) return false;
     if(t.turno!=='--' && !F_TURNO.has(t.turno)) return false;
-    /* Só filtra por evolução se o código for um dos 4 confirmados — código
+    /* Só filtra por evolução se o código for um dos confirmados — código
        desconhecido sempre aparece, pra não esconder dado por falta de mapa */
-    if([5,10,40,50].indexOf(t.evolucaoCode)!==-1 && !F_EVO.has(t.evolucaoCode)) return false;
+    if([5,10,40,50,-1].indexOf(t.evolucaoCode)!==-1 && !F_EVO.has(t.evolucaoCode)) return false;
     if(dV&&t.dest!==dV)return false;
-    if(t.eta){var ed=localDateStr(t.eta);if(dF&&ed<dF)return false;if(dT&&ed>dT)return false;}
+    if(t.eta){var ed=t.eta.toISOString().slice(0,10);if(dF&&ed<dF)return false;if(dT&&ed>dT)return false;}
     return true;
   });
   return sortTrips(list);
@@ -876,9 +791,18 @@ var BRIDGE_TRIP_DETAIL = []; /* ob_trip_detail — fonte PRIMÁRIA do Left-Over.
 var BRIDGE_MONITOR = []; /* ob_monitor — lista de todas as trips visíveis na
    tela (não clicadas individualmente). Usado só como contador informativo
    (quantas trips ainda faltam detalhar), não alimenta o cálculo. */
+var BRIDGE_FIELD_LIST = []; /* field_trip_list — fonte robusta e completa
+   (mesma que alimenta o bot SeaTalk), usada SÓ pra detectar trips
+   canceladas: o ob_trip_detail simplesmente NÃO inclui trips canceladas
+   (confirmado — o SPX remove elas da visão de Outbound Monitoring), então
+   precisamos cruzar com essa fonte pra saber que existiram e sumiram. */
 
 function importBridge(silent){
-  var EXT_ID = 'ingiepianpipilnaiaehghdkjfhkgale';
+  var EXT_ID = 'ingiepianpipilnaiaehghdkjfhkgale'; /* ID FIXO permanente — ver
+     spx-ce3-bridge.md. Estava com ID errado/desatualizado antes (mesma
+     classe de bug já vista no leftover_dashboard_6.html), fazendo todo
+     chrome.runtime.sendMessage falhar silenciosamente e o dashboard ficar
+     preso numa foto antiga do BRIDGE_TRIP_DETAIL. */
   var btn = document.getElementById('btn-bridge');
   if(typeof chrome==='undefined'||!chrome.runtime||!chrome.runtime.sendMessage){
     console.warn('[LO Bridge] chrome.runtime indisponível — extensão não detectada nesta página.');
@@ -909,21 +833,28 @@ function importBridge(silent){
     chrome.runtime.sendMessage(EXT_ID,{type:'GET_OB_MONITOR'},function(resp2){
       BRIDGE_MONITOR = (resp2 && resp2.ok && resp2.ob_monitor) ? resp2.ob_monitor : [];
 
-      var badge = document.getElementById('badge-bridge');
-      if(badge){
-        badge.style.display='';
-        badge.textContent = BRIDGE_TRIP_DETAIL.length+' trips detalhadas'+
-          (BRIDGE_MONITOR.length ? ' · '+BRIDGE_MONITOR.length+' na lista' : '')+
-          ' · atualizado '+new Date().toLocaleTimeString('pt-BR');
-      }
-      if(btn){
-        btn.textContent='⚡ Live (auto)';
-        btn.style.borderColor='var(--grn)';
-        btn.style.color='var(--grn)';
-      }
-      compute();
-      console.log('[LO Bridge] '+BRIDGE_TRIP_DETAIL.length+' trips detalhadas · '+
-        BRIDGE_MONITOR.length+' na lista | última captura: '+updStr);
+      /* Busca field_trip_list também — só pra detectar canceladas (ver
+         isCanceladaField()), não entra no cálculo normal de Left-Over. */
+      chrome.runtime.sendMessage(EXT_ID,{type:'GET_FIELD_TRIP_LIST'},function(resp3){
+        BRIDGE_FIELD_LIST = (resp3 && resp3.ok && resp3.field_trip_list) ? resp3.field_trip_list : [];
+
+        var badge = document.getElementById('badge-bridge');
+        if(badge){
+          badge.style.display='';
+          badge.textContent = BRIDGE_TRIP_DETAIL.length+' trips detalhadas'+
+            (BRIDGE_MONITOR.length ? ' · '+BRIDGE_MONITOR.length+' na lista' : '')+
+            ' · atualizado '+new Date().toLocaleTimeString('pt-BR');
+        }
+        if(btn){
+          btn.textContent='⚡ Live (auto)';
+          btn.style.borderColor='var(--grn)';
+          btn.style.color='var(--grn)';
+        }
+        compute();
+        console.log('[LO Bridge] '+BRIDGE_TRIP_DETAIL.length+' trips detalhadas · '+
+          BRIDGE_MONITOR.length+' na lista · '+BRIDGE_FIELD_LIST.length+' no field_trip_list'+
+          ' | última captura: '+updStr);
+      });
     });
   });
 }
@@ -964,8 +895,22 @@ function sumPackString(s){
   return parsePackBreakdown(s).reduce(function(acc,it){ return acc+it.qty; }, 0);
 }
 
+/* Sinal confirmado (mesmo usado no bot SeaTalk): trip_status===100 &&
+   (nunca chegou OU remark não-vazio). Para OUTBOUND mantém as duas
+   condições. "Chegou" aqui = leg de CE3 (origem) já tem ata preenchido —
+   ausência disso indica que o motorista nunca apareceu pra carregar. */
+function isCanceladaField(trip){
+  if(trip.trip_status !== 100) return false;
+  var ce3Leg = (trip.trip_station||[]).find(function(l){
+    return l.station_code==='SOC-CE3' || l.station===13813;
+  });
+  var neverArrived = !ce3Leg || !ce3Leg.ata || ce3Leg.ata===0;
+  var hasRemark = !!(trip.remark && trip.remark.trim());
+  return neverArrived || hasRemark;
+}
+
 function compute(){
-  if(!BRIDGE_TRIP_DETAIL.length){ TRIPS = []; updateKPIs(); renderTable(); return; }
+  if(!BRIDGE_TRIP_DETAIL.length && !BRIDGE_FIELD_LIST.length){ TRIPS = []; updateKPIs(); renderTable(); return; }
 
   TRIPS = BRIDGE_TRIP_DETAIL.map(function(trip){
     var tn = trip.trip_number || '';
@@ -984,15 +929,6 @@ function compute(){
     var total     = embaladas + leftOver;
     var pct       = total > 0 ? (embaladas / total * 100) : 100;
     var status    = pct >= 100 ? 'ok' : pct >= 99 ? 'warn' : 'crit';
-
-    /* ADO = pacotes (orders) — unidade diferente de TOs. loaded_order_quantity
-       e pending_order_quantity já vêm prontos no ob_trip_detail, sem precisar
-       de fonte nova. adoTotal = quanto essa trip deveria alcançar se tudo que
-       está staged for carregado (não é um "mínimo" configurado externamente —
-       isso viria do Stage Out do Planner, que não usamos aqui). */
-    var adoLoaded = trip.loaded_order_quantity || 0;
-    var adoPending = trip.pending_order_quantity || 0;
-    var adoTotal = adoLoaded + adoPending;
 
     /* Turno calculado só por minuto-do-dia do ETA Origem (ignora a data
        por completo) — mesma lógica usada na Análise Inbound, garante que
@@ -1015,10 +951,47 @@ function compute(){
       tipologia: trip.vehicle_type_name || '--',
       eta: eta, std: std, corte: corte,
       total: total, embaladas: embaladas, leftOver: leftOver, breakdown: breakdown, pct: pct,
-      adoLoaded: adoLoaded, adoTotal: adoTotal,
       status: status, turno: turno, evolucaoCode: evolucaoCode,
       partiu: !!(trip.atd && trip.atd > 0) /* trip já saiu — se leftOver>0 aqui, é definitivo */
     };
+  });
+
+  /* Mescla trips CANCELADAS vindas do field_trip_list — o ob_trip_detail
+     nunca as inclui (SPX remove da visão de Outbound Monitoring), então
+     é a única forma de saber que existiram e sumiram. Só considera trips
+     cuja origem é CE3 (relevante pro Left-Over/Outbound), e evita
+     duplicar quem por acaso já apareça no ob_trip_detail. */
+  var jaPresentes = new Set(TRIPS.map(function(t){return t.tn;}));
+  BRIDGE_FIELD_LIST.forEach(function(trip){
+    var tn = trip.trip_number || '';
+    if(!tn || jaPresentes.has(tn)) return;
+    var ce3Leg = (trip.trip_station||[]).find(function(l){
+      return l.station_code==='SOC-CE3' || l.station===13813;
+    });
+    if(!ce3Leg) return; /* não é uma trip de origem CE3, irrelevante aqui */
+    if(!isCanceladaField(trip)) return;
+
+    var eta   = ce3Leg.sta ? new Date(ce3Leg.sta * 1000) : null;
+    var std   = ce3Leg.std ? new Date(ce3Leg.std * 1000) : null;
+    var corte = eta ? new Date(eta.getTime() - 2*60*60*1000) : null;
+    var turno='--';
+    if(eta){
+      var hm=eta.getHours()*60+eta.getMinutes();
+      turno = (hm>=325 && hm<=825) ? 'T1' : (hm>=826 && hm<=1325) ? 'T2' : 'T3';
+    }
+
+    TRIPS.push({
+      tn: tn,
+      dest: (trip.next_station_name_list && trip.next_station_name_list[1]) || '--',
+      driver: trip.driver_name || '--',
+      tipologia: trip.vehicle_type_name || '--',
+      eta: eta, std: std, corte: corte,
+      total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
+      status: 'cancelado', turno: turno, evolucaoCode: -1,
+      partiu: false,
+      motivo: trip.remark || 'não informado, nunca teve chegada registrada'
+    });
+    jaPresentes.add(tn);
   });
 
   /* Ordenação fica a cargo de filteredTrips()/sortTrips(), que já roda a
@@ -1039,10 +1012,10 @@ function compute(){
 
 /* ── KPIs ────────────────────────────────────────────────────── */
 function updateKPIs(){
-  var vis0=filteredTrips();
-  var totalTOs=vis0.reduce(function(s,t){return s+t.total;},0);
-  var totalEmb=vis0.reduce(function(s,t){return s+t.embaladas;},0);
-  var totalLO=vis0.reduce(function(s,t){return s+t.leftOver;},0);
+  /* Canceladas NUNCA entram nos KPIs (não fazem sentido pra Left-Over de
+     packaging), mesmo se o usuário tiver ligado o filtro de visualização
+     delas na tabela — isso é só pra visibilidade operacional. */
+  var vis0=filteredTrips().filter(function(t){return t.status!=='cancelado';});
   var geralPct   = totalTOs > 0 ? (totalEmb/totalTOs*100) : 100;
   var geralStatus= geralPct >= 100?'ok':geralPct>=99?'warn':'crit';
 
@@ -1055,7 +1028,7 @@ function updateKPIs(){
     geralStatus==='warn'?'⚠ Atenção — próximo da meta':
     '✗ Abaixo do mínimo — ação imediata';
 
-  document.getElementById('kpi-trips').textContent = vis0.length;
+  document.getElementById('kpi-trips').textContent = TRIPS.filter(function(t){return t.status!=='cancelado';}).length;
   document.getElementById('kpi-trips-sub').textContent =
     vis0.filter(function(t){return t.status==='crit';}).length+' críticas · '+
     vis0.filter(function(t){return t.status==='warn';}).length+' em atenção';
@@ -1064,8 +1037,8 @@ function updateKPIs(){
   document.getElementById('kpi-emb-sub').textContent = 'de '+totalTOs.toLocaleString('pt-BR')+' TOs totais';
 
   document.getElementById('kpi-lo').textContent = totalLO.toLocaleString('pt-BR');
-  document.getElementById('kpi-lo-sub').textContent = totalLO===0?'Zero TOs perdidas':
-    totalLO+' TO'+(totalLO>1?'s':'')+' não embalada'+(totalLO>1?'s':'')+' no corte';
+  document.getElementById('kpi-lo-sub').textContent = totalLO===0?'Zero pacotes perdidos':
+    totalLO+' pacote'+(totalLO>1?'s':'')+' não embalado'+(totalLO>1?'s':'');
 
   /* Atualiza cor da borda superior dos cards KPI */
   var cards = document.querySelectorAll('.kpi-card');
@@ -1099,6 +1072,7 @@ function progColor(pct){
 function statusBadge(status){
   if(status==='ok')   return '<span class="badge badge-ok"><span class="dot"></span>META</span>';
   if(status==='warn') return '<span class="badge badge-warn"><span class="dot"></span>ATENÇÃO</span>';
+  if(status==='cancelado') return '<span class="badge badge-cancel">🚫 CANCELADO</span>';
   return '<span class="badge badge-crit"><span class="dot"></span>CRÍTICO</span>';
 }
 
@@ -1111,7 +1085,8 @@ var EVO_MAP = {
   5:  {label:'Atribuído',  cls:'badge-evo-atrib'},
   50: {label:'Chegou',     cls:'badge-evo-chegou'},
   10: {label:'Carregando', cls:'badge-evo-carreg'},
-  40: {label:'Expedido',   cls:'badge-evo-exped'}
+  40: {label:'Expedido',   cls:'badge-evo-exped'},
+  '-1': {label:'Cancelado', cls:'badge-evo-cancel'}
 };
 function evolucaoLabel(code){
   return EVO_MAP[code] ? EVO_MAP[code].label : ('Código '+code);
@@ -1171,21 +1146,11 @@ function pendingDetailTrips(){
 
 function renderPendingPanel(){
   var el = document.getElementById('pending-panel');
-  var badge = document.getElementById('avisos-badge');
   if(!el) return;
-
-  if(!BRIDGE_MONITOR.length){
-    el.innerHTML = '<div style="color:var(--text3);font-size:13px;">Nenhum aviso no momento.</div>';
-    if(badge) badge.style.display = 'none';
-    return;
-  }
+  if(!BRIDGE_MONITOR.length){ el.innerHTML = ''; return; }
 
   var pending = pendingDetailTrips();
-  if(!pending.length){
-    el.innerHTML = '<div style="color:var(--text3);font-size:13px;">Nenhum aviso no momento — todas as trips com estado avançado já foram detalhadas.</div>';
-    if(badge) badge.style.display = 'none';
-    return;
-  }
+  if(!pending.length){ el.innerHTML = ''; return; }
 
   el.innerHTML =
     '<div class="pending-box">'+
@@ -1197,13 +1162,7 @@ function renderPendingPanel(){
         '</span>';
       }).join('')+
     '</div>';
-
-  if(badge){
-    badge.style.display = '';
-    badge.textContent = pending.length;
-  }
 }
-
 function donutCell(t){
   var pct      = t.pct;
   var pctDisp  = Math.min(pct, 100);
@@ -1215,11 +1174,6 @@ function donutCell(t){
   var pctInt   = Math.round(pct);
   var pctExact = (pct>=100?'100':pct.toFixed(1))+'%';
 
-  /* Brilho dinâmico: enquanto não partiu, "enchendo" (pulsa o glow).
-     Depois de partir: se sobrou left-over (não ok), pisca como alerta.
-     Se partiu com 100% (ok), fica parado — resolvido, sem mais brilho. */
-  var glowClass = t.partiu ? (t.status !== 'ok' ? 'donut-arc-alert' : '') : 'donut-arc-active';
-
   var svg = '<svg width="80" height="80" viewBox="0 0 80 80">'+
     '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--bg4)" stroke-width="'+sw+'"/>'+
     '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+sw+'"'+
@@ -1227,8 +1181,7 @@ function donutCell(t){
       ' stroke-dashoffset="'+(circ/4).toFixed(2)+'"'+
       ' stroke-linecap="round"'+
       ' transform="rotate(-90 '+cx+' '+cy+')"'+
-      (glowClass ? ' class="'+glowClass+'"' : '')+
-      ' style="transition:stroke-dasharray .8s ease;color:'+color+';filter:drop-shadow(0 0 5px '+color+'88)"/>'+
+      ' style="transition:stroke-dasharray .8s ease;filter:drop-shadow(0 0 5px '+color+'88)"/>'+
     '</svg>';
 
   var breakdownRows = t.breakdown.length
@@ -1252,7 +1205,6 @@ function donutCell(t){
     '</div>'+
     '<div class="prog-detail">'+
       '<div class="pack-frac">'+t.embaladas.toLocaleString('pt-BR')+'<span>/</span>'+t.total.toLocaleString('pt-BR')+' TOs</div>'+
-      '<div class="ado-frac">📦 ADO <b>'+t.adoLoaded.toLocaleString('pt-BR')+'</b><span> / </span><b>'+t.adoTotal.toLocaleString('pt-BR')+'</b> pacotes</div>'+
       breakdownRows+
     '</div>'+
   '</div>';
@@ -1288,41 +1240,26 @@ function renderTable(){
 
   var rows = vis.map(function(t){
     var loStr   = t.leftOver > 0
-      ? '<span style="color:var(--red);font-weight:700;font-size:26px;">'+t.leftOver+'</span>'
-      : '<span style="color:var(--grn);font-size:26px;">0</span>';
+      ? '<span style="color:var(--red);font-weight:700">'+t.leftOver+'</span>'
+      : '<span style="color:var(--grn)">0</span>';
 
     var etaStr = t.eta ? t.eta.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--';
     var stdStr = t.std ? t.std.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--';
     var farolOn = isFarolActive(t);
 
-    /* Evolução efetiva: override manual (temporário, até o próximo poll
-       de 5min trazer o real da API) tem prioridade sobre o dado ao vivo */
-    var evoCode = MANUAL_EVO[t.tn] !== undefined ? MANUAL_EVO[t.tn] : t.evolucaoCode;
-    var evoIdx  = EVO_CHAIN.indexOf(evoCode);
-    var hasNext = evoIdx !== -1 && evoIdx < EVO_CHAIN.length-1;
-    var hidden  = HIDDEN_TNS.has(t.tn);
-
-    var tnCell = '<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">'+
-      '<button class="btn-row btn-hide" title="'+(hidden?'Mostrar':'Ocultar')+'" '+
-        'onclick="event.stopPropagation();'+(hidden?'showTrip':'hideTrip')+'(\''+t.tn+'\')">'+(hidden?'👁':'🚫')+'</button>'+
-      '<button class="btn-row btn-next" title="'+(hasNext?'Avançar p/ '+evolucaoLabel(EVO_CHAIN[evoIdx+1])+' (temporário até o próximo poll)':'Sem próximo estado')+'" '+
-        (hasNext?'':'disabled ')+'onclick="event.stopPropagation();advanceEvo(\''+t.tn+'\')">⟳</button>'+
-      '<span>'+t.tn+'</span>'+
-    '</div>';
-
     return '<tr class="row-'+t.status+(farolOn?' row-farol':'')+'">'+
-      '<td class="tn">'+tnCell+'</td>'+
+      '<td class="tn">'+t.tn+'</td>'+
       '<td><span class="dest-label">'+shortDest(t.dest)+'</span></td>'+
-      '<td style="font-size:17px;font-weight:700;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t.driver+'">'+shortDriverName(t.driver)+'</td>'+
-      '<td style="font-size:17px;">'+t.tipologia+'</td>'+
-      '<td>'+evolucaoBadge(evoCode)+'</td>'+
-      '<td>'+statusBadge(t.status)+(farolOn?farolBadge(t):'')+'</td>'+
+      '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t.driver+'">'+shortDriverName(t.driver)+'</td>'+
+      '<td style="font-size:11px;">'+t.tipologia+'</td>'+
+      '<td>'+evolucaoBadge(t.evolucaoCode)+'</td>'+
+      '<td'+(t.motivo?' title="Motivo: '+t.motivo.replace(/"/g,'&quot;')+'"':'')+'>'+statusBadge(t.status)+(farolOn?farolBadge(t):'')+'</td>'+
       '<td>'+donutCell(t)+'</td>'+
       '<td style="text-align:center;">'+loStr+'</td>'+
-      '<td style="text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;">'+t.total+'</td>'+
-      '<td style="text-align:center;font-family:var(--mono);font-size:22px;font-weight:700;color:var(--grn);">'+t.embaladas+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);font-size:11px;">'+t.total+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--grn);">'+t.embaladas+'</td>'+
       '<td>'+
-        '<div style="font-size:18px;color:var(--text2);white-space:nowrap;">'+
+        '<div style="font-size:10px;color:var(--text2);white-space:nowrap;">'+
           'ETA <b style="color:var(--text);font-family:var(--mono);">'+etaStr+'</b>'+
           '<span style="margin:0 4px;">·</span>'+
           'STD <b style="color:var(--text);font-family:var(--mono);">'+stdStr+'</b>'+

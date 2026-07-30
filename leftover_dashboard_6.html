@@ -967,25 +967,25 @@ function compute(){
     var total     = embaladas + leftOver;
     var pct       = total > 0 ? (embaladas / total * 100) : 100;
 
-    /* v1.62: dados novos pro critério combinado — ocupação vem pronta do
-       SPX (vehicle_capacity_percent), orders carregadas via
-       loaded_order_quantity (fallback vehicle_load_quantity, mesmo valor
-       nos exemplos reais testados). dest precisa vir ANTES pra buscar o
-       ADO mínimo certo na tabela. */
+    /* dest precisa vir ANTES pra buscar o ADO mínimo certo na tabela */
     var dest        = (trip.next_station_name && trip.next_station_name[0]) || '--';
     var ocupacaoPct = (typeof trip.vehicle_capacity_percent === 'number') ? trip.vehicle_capacity_percent : null;
-    /* v1.65 (bug corrigido): orderQty é a soma carregado+pendente — o "ADO"
-       real dessa trip específica, já documentado assim antes desta sessão
-       (nota antiga: "ADO = loaded_order_quantity + pending_order_quantity,
-       não um mínimo configurado"). Eu tinha usado só loaded_order_quantity,
-       que fica 0 antes da trip começar a carregar — fazendo toda trip em
-       Atribuído/Chegou aparecer com "orders=0" e cair em Crítico sempre.
-       ADO_MINIMO é o LIMIAR (métrica fixa por destino, tabela Stage Out);
-       orderQty é o volume REAL dessa trip (dinâmico, muda com a carga). */
-    var orderQty    = (trip.loaded_order_quantity || 0) + (trip.pending_order_quantity || 0);
-    if(orderQty === 0) orderQty = trip.vehicle_load_quantity || 0; /* fallback se os dois vierem ausentes */
+    /* v1.66 (Iury corrigiu de novo — dois números diferentes, nunca mais
+       confundir):
+       - orderLoaded (X, exibido na coluna VOLUME): SÓ o que já foi
+         carregado — loaded_order_quantity sozinho.
+       - orderTotal (Y, exibido na coluna VOLUME E usado no critério de
+         status contra ADO_MINIMO): TOTAL de orders atribuídas à trip —
+         soma das orders contidas em TODAS as TOs dela, carregadas +
+         pendentes. É variável por trip (NÃO é vehicle_capacity, que é
+         fixo por tipologia — isso é a Ocupação%, coluna separada).
+       ADO_MINIMO continua sendo só o LIMIAR fixo por destino (tabela
+       Stage Out), usado no critério de status — nunca exibido como Y. */
+    var orderLoaded = trip.loaded_order_quantity || 0;
+    var orderTotal  = orderLoaded + (trip.pending_order_quantity || 0);
+    if(orderTotal === 0) orderTotal = trip.vehicle_load_quantity || 0; /* fallback se ambos vierem ausentes */
     var adoMinimo   = (ADO_MINIMO[dest] !== undefined) ? ADO_MINIMO[dest] : null;
-    var status      = computeStatus(pct, adoMinimo, orderQty, ocupacaoPct);
+    var status      = computeStatus(pct, adoMinimo, orderTotal, ocupacaoPct);
 
     /* Turno calculado só por minuto-do-dia do ETA Origem (ignora a data
        por completo) — mesma lógica usada na Análise Inbound, garante que
@@ -1020,7 +1020,7 @@ function compute(){
       tipologia: trip.vehicle_type_name || '--',
       eta: eta, std: std, corte: corte,
       total: total, embaladas: embaladas, leftOver: leftOver, breakdown: breakdown, pct: pct,
-      ocupacaoPct: ocupacaoPct, orderQty: orderQty, adoMinimo: adoMinimo,
+      ocupacaoPct: ocupacaoPct, orderLoaded: orderLoaded, orderTotal: orderTotal, adoMinimo: adoMinimo,
       status: status, turno: turno, evolucaoCode: evolucaoCode,
       partiu: !!(trip.atd && trip.atd > 0) /* trip já saiu — se leftOver>0 aqui, é definitivo */
     };
@@ -1065,7 +1065,7 @@ function compute(){
         tipologia: trip.vehicle_type_name || '--',
         eta: eta, std: std, corte: corte,
         total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
-        ocupacaoPct: null, orderQty: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
+        ocupacaoPct: null, orderLoaded: 0, orderTotal: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
         status: 'cancelado', turno: turno, evolucaoCode: -1,
         partiu: false,
         motivo: trip.remark || 'não informado, nunca teve chegada registrada'
@@ -1081,7 +1081,7 @@ function compute(){
         tipologia: trip.vehicle_type_name || '--',
         eta: eta, std: std, corte: corte,
         total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
-        ocupacaoPct: null, orderQty: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
+        ocupacaoPct: null, orderLoaded: 0, orderTotal: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
         status: 'sem_dado', turno: turno, evolucaoCode: evolucaoFromFieldLeg(ce3Leg),
         partiu: !!(ce3Leg.seal_time && ce3Leg.seal_time > 0)
       });
@@ -1344,9 +1344,9 @@ function ocupacaoDonutCell(t){
       ' style="transition:stroke-dasharray .8s ease;filter:drop-shadow(0 0 5px rgba(59,130,246,.55))"/>'+
     '</svg>';
 
-  var orderQty  = t.orderQty || 0;
+  var orderTotal = t.orderTotal || 0;
   var adoTxt    = (t.adoMinimo !== null && t.adoMinimo !== undefined)
-    ? orderQty.toLocaleString('pt-BR')+' Ord.'
+    ? orderTotal.toLocaleString('pt-BR')+' Ord.'
     : '<span style="color:var(--text3);">ADO mín. não cadastrado</span>';
 
   return '<div class="prog-cell">'+
@@ -1364,15 +1364,21 @@ function ocupacaoDonutCell(t){
 /* v1.62 (item 4, Iury pediu): renomeado sem a palavra "ADO" — mostra
    quantidade carregada / mínimo do destino, com o que falta em parênteses. */
 function volumeCell(t){
-  if(t.adoMinimo === null || t.adoMinimo === undefined){
+  /* v1.66: mostra progresso de carregamento em ORDERS — X=carregado até
+     agora (orderLoaded), Y=total atribuído à trip (orderTotal, carregado+
+     pendente, variável por trip). NÃO usa mais ADO_MINIMO aqui — isso
+     ficou só no critério de status (badge STATUS), nunca como alvo
+     exibido nesta coluna. Cor é neutra (progresso, não alerta) — quem
+     sinaliza problema é o badge de STATUS, não esta célula. */
+  var atual = t.orderLoaded || 0;
+  var total = t.orderTotal || 0;
+  if(total === 0){
     return '<span style="color:var(--text3);font-size:11px;">--</span>';
   }
-  var atual = t.orderQty || 0;
-  var alvo  = t.adoMinimo;
-  var falta = Math.max(alvo - atual, 0);
-  var cor   = atual >= alvo ? 'var(--grn)' : 'var(--red)';
-  return '<div style="font-family:var(--mono);font-size:12px;color:'+cor+';white-space:nowrap;">'+
-    atual.toLocaleString('pt-BR')+'/'+alvo.toLocaleString('pt-BR')+
+  var falta = Math.max(total - atual, 0);
+  var completo = atual >= total;
+  return '<div style="font-family:var(--mono);font-size:12px;color:'+(completo?'var(--grn)':'var(--text)')+';white-space:nowrap;">'+
+    atual.toLocaleString('pt-BR')+'/'+total.toLocaleString('pt-BR')+
     (falta>0 ? ' <span style="color:var(--text3);">(faltam '+falta.toLocaleString('pt-BR')+')</span>' : ' ✓')+
   '</div>';
 }

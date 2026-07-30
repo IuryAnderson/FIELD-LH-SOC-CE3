@@ -586,10 +586,10 @@ html, body {
     </div>
     <div style="width:1px;height:24px;background:var(--line);flex-shrink:0;"></div>
     <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--grn)"></div>Meta (100%)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--amb)"></div>Atenção (99–99,9%)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Crítico (&lt;99%)</div>
+      <div class="legend" title="Crítico sempre se: ADO mínimo do destino não atingido, OU ocupação do veículo < 100% mesmo com ADO batido.">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--grn)"></div>Meta (≥95% + ADO ok)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--amb)"></div>Atenção (90,1–94,9% + ADO ok)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Crítico (&lt;90,1%, ADO não atingido, ou ocupação &lt;100%)</div>
       </div>
     </div>
   </div>
@@ -916,11 +916,22 @@ function evolucaoFromFieldLeg(ce3Leg){
   return 5;                                                   /* Atribuído */
 }
 
+/* Left-Over é só sobre OUTBOUND (CE3 como ORIGEM de carga) — uma trip
+   Inbound também tem um leg de CE3 (como DESTINO), então checar só
+   "existe algum leg de CE3" (sem olhar a posição) pegava as duas
+   direções por engano. Aqui exige que CE3 seja especificamente o
+   PRIMEIRO leg (trip_station[0]) — só isso confirma que a trip SAI de
+   CE3, não que só passa por ela. */
+function ce3OrigemLeg(trip){
+  var legs = trip.trip_station || [];
+  var first = legs[0];
+  if(first && (first.station_code==='SOC-CE3' || first.station===13813)) return first;
+  return null;
+}
+
 function isCanceladaField(trip){
   if(trip.trip_status !== 100) return false;
-  var ce3Leg = (trip.trip_station||[]).find(function(l){
-    return l.station_code==='SOC-CE3' || l.station===13813;
-  });
+  var ce3Leg = ce3OrigemLeg(trip);
   var neverArrived = !ce3Leg || !ce3Leg.ata || ce3Leg.ata===0;
   var hasRemark = !!(trip.remark && trip.remark.trim());
   return neverArrived || hasRemark;
@@ -933,11 +944,7 @@ function compute(){
   BRIDGE_FIELD_LIST.forEach(function(trip){
     if(trip.trip_number) fieldByTn[trip.trip_number] = trip;
   });
-  function ce3LegOf(trip){
-    return (trip.trip_station||[]).find(function(l){
-      return l.station_code==='SOC-CE3' || l.station===13813;
-    });
-  }
+  var ce3LegOf = ce3OrigemLeg; /* alias — mesma função, mantém nome usado abaixo */
 
   TRIPS = BRIDGE_TRIP_DETAIL.map(function(trip){
     var tn = trip.trip_number || '';
@@ -948,14 +955,28 @@ function compute(){
        Iury, ele confirma e a gente ajusta o cálculo). */
     var eta   = trip.sta ? new Date(trip.sta * 1000) : null;
     var std   = trip.std ? new Date(trip.std * 1000) : null; /* Schedule Departure */
-    var corte = eta ? new Date(eta.getTime() - 2*60*60*1000) : null; /* CPT = ETA - 2h */
+    /* v1.63 (Iury confirmou com dado real do SPX): CPT É o campo std
+       (Schedule Time Departure) direto — NÃO é calculado como ETA-2h.
+       Esse cálculo estava errado desde muito antes desta sessão (nota já
+       registrada na memória, nunca corrigida nas reescritas). */
+    var corte = std;
 
     var embaladas = trip.loaded_to_quantity || 0;
     var breakdown = parsePackBreakdown(trip.pending_to_pack);
     var leftOver  = breakdown.reduce(function(acc,it){ return acc+it.qty; }, 0);
     var total     = embaladas + leftOver;
     var pct       = total > 0 ? (embaladas / total * 100) : 100;
-    var status    = pct >= 100 ? 'ok' : pct >= 99 ? 'warn' : 'crit';
+
+    /* v1.62: dados novos pro critério combinado — ocupação vem pronta do
+       SPX (vehicle_capacity_percent), orders carregadas via
+       loaded_order_quantity (fallback vehicle_load_quantity, mesmo valor
+       nos exemplos reais testados). dest precisa vir ANTES pra buscar o
+       ADO mínimo certo na tabela. */
+    var dest        = (trip.next_station_name && trip.next_station_name[0]) || '--';
+    var ocupacaoPct = (typeof trip.vehicle_capacity_percent === 'number') ? trip.vehicle_capacity_percent : null;
+    var orderQty    = trip.loaded_order_quantity || trip.vehicle_load_quantity || 0;
+    var adoMinimo   = (ADO_MINIMO[dest] !== undefined) ? ADO_MINIMO[dest] : null;
+    var status      = computeStatus(pct, adoMinimo, orderQty, ocupacaoPct);
 
     /* Turno calculado só por minuto-do-dia do ETA Origem (ignora a data
        por completo) — mesma lógica usada na Análise Inbound, garante que
@@ -985,11 +1006,12 @@ function compute(){
 
     return {
       tn: tn,
-      dest: (trip.next_station_name && trip.next_station_name[0]) || '--',
+      dest: dest,
       driver: trip.driver_name || '--',
       tipologia: trip.vehicle_type_name || '--',
       eta: eta, std: std, corte: corte,
       total: total, embaladas: embaladas, leftOver: leftOver, breakdown: breakdown, pct: pct,
+      ocupacaoPct: ocupacaoPct, orderQty: orderQty, adoMinimo: adoMinimo,
       status: status, turno: turno, evolucaoCode: evolucaoCode,
       partiu: !!(trip.atd && trip.atd > 0) /* trip já saiu — se leftOver>0 aqui, é definitivo */
     };
@@ -1019,7 +1041,8 @@ function compute(){
 
     var eta   = ce3Leg.sta ? new Date(ce3Leg.sta * 1000) : null;
     var std   = ce3Leg.std ? new Date(ce3Leg.std * 1000) : null;
-    var corte = eta ? new Date(eta.getTime() - 2*60*60*1000) : null;
+    /* v1.63: CPT = std direto, não ETA-2h — ver comentário no bloco principal */
+    var corte = std;
     var turno='--';
     if(eta){
       var hm=eta.getHours()*60+eta.getMinutes();
@@ -1033,6 +1056,7 @@ function compute(){
         tipologia: trip.vehicle_type_name || '--',
         eta: eta, std: std, corte: corte,
         total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
+        ocupacaoPct: null, orderQty: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
         status: 'cancelado', turno: turno, evolucaoCode: -1,
         partiu: false,
         motivo: trip.remark || 'não informado, nunca teve chegada registrada'
@@ -1048,6 +1072,7 @@ function compute(){
         tipologia: trip.vehicle_type_name || '--',
         eta: eta, std: std, corte: corte,
         total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
+        ocupacaoPct: null, orderQty: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
         status: 'sem_dado', turno: turno, evolucaoCode: evolucaoFromFieldLeg(ce3Leg),
         partiu: !!(ce3Leg.seal_time && ce3Leg.seal_time > 0)
       });
@@ -1122,6 +1147,61 @@ function fmtCountdown(corte){
   var h    = Math.floor(mins/60), m = mins%60;
   var cls  = mins>60?'ok':mins>20?'warn':'crit';
   return '<span class="countdown '+cls+'">⏱ '+(h>0?h+'h':'')+pad(m)+'min</span>';
+}
+
+/* v1.62 (Iury pediu): ADO mínimo por destino — tabela "Consolidado Stage
+   Out". Chave = nome do destino EXATAMENTE como aparece em
+   trip.next_station_name (ob_trip_detail). Usado como critério PRIMÁRIO
+   de status agora — substitui o critério antigo baseado só em %TOs. */
+var ADO_MINIMO = {
+  "SoC_SP_São Bernardo do Campo": 6000,
+  "SoC_BA_Simoes Filho": 6000,
+  "SoC_PE_Jaboatão dos Guararapes": 6000,
+  "LM Hub_CE_Itaitinga": 1100,
+  "LM Hub_CE_Fortaleza_Cajazeiras": 1100,
+  "LM Hub_CE_Caucaia": 1100,
+  "LM Hub_CE_Fortaleza-02": 1100,
+  "LM Hub_CE_Juazeiro do Norte": 1500,
+  "LM Hub_PI_Teresina_01": 6000,
+  "XPT_CE_São Gonçalo do Amarante": 1100,
+  "XPT_CE_Crateús": 1500,
+  "XPT_CE_Iguatu": 1500,
+  "XPT_CE_Sobral_02": 1500,
+  "XPT_PI_Parnaíba": 1500,
+  "XPT_RN_Pau dos Ferros": 1500,
+  "XPT_CE_São Benedito": 1500,
+  "XPT_CE_Canindé": 1100,
+  "XPT_CE_Limoeiro do Norte": 1500,
+  "XPT_CE_Redenção-Acarape": 1100,
+  "XPT_CE_Aracati": 1500,
+  "SoC_RJ_Duque de Caxias": 0,
+  "SoC_MG_Betim": 6000,
+  "SoC_GO_Goiânia_02": 6000,
+  "XPT_CE_Itapipoca": 0,
+  "XPT_CE_Quixadá": 0,
+  "XPT_CE_Acaraú": 0
+};
+
+/* v1.62: lógica de status combinada (Iury definiu, 29/07/2026):
+   1) Se a trip partir abaixo do ADO mínimo do destino → CRÍTICO sempre,
+      independente de ocupação ou %TOs (KPI quebrado).
+   2) Se ADO mínimo foi atingido, mas ocupação do veículo < 100% →
+      CRÍTICO também (veículo saiu sem aproveitar a capacidade certa).
+   3) Se ADO mínimo atingido E ocupação >= 100%, aí sim o %TOs decide:
+      >=95% Meta · 90,1%–94,9% Atenção · <90,1% Crítico.
+   Sem ADO mínimo cadastrado pro destino (não está na tabela) → cai no
+   critério antigo (só %TOs, faixas 100/99-99.9/<99), já que não dá pra
+   aplicar o critério 1/2 sem o número de referência. */
+function computeStatus(toPercent, adoMinimo, orderQty, ocupacaoPct){
+  if(adoMinimo === null || adoMinimo === undefined){
+    return toPercent >= 100 ? 'ok' : toPercent >= 99 ? 'warn' : 'crit';
+  }
+  var adoAtingido = (orderQty || 0) >= adoMinimo;
+  if(!adoAtingido) return 'crit';
+  if(ocupacaoPct !== null && ocupacaoPct !== undefined && ocupacaoPct < 100) return 'crit';
+  if(toPercent >= 95) return 'ok';
+  if(toPercent >= 90.1) return 'warn';
+  return 'crit';
 }
 
 function progColor(pct){
@@ -1225,6 +1305,66 @@ function renderPendingPanel(){
       }).join('')+
     '</div>';
 }
+/* v1.62: donut de Ocupação — mesmo estilo premium do donut de Left-Over
+   (glow via drop-shadow), cor azul fixa (não semântica — a cor que indica
+   problema é o STATUS da linha, não esse donut isoladamente). */
+function ocupacaoDonutCell(t){
+  if(t.ocupacaoPct === null || t.ocupacaoPct === undefined){
+    return '<div class="prog-cell"><div class="prog-detail" style="padding-top:26px;">'+
+      '<span style="color:var(--text3);font-size:12px;">Sem dado</span></div></div>';
+  }
+  var pct     = t.ocupacaoPct;
+  var pctDisp = Math.min(Math.max(pct,0), 100);
+  var color   = 'var(--blu)';
+  var r=33, cx=40, cy=40, sw=7;
+  var circ  = 2*Math.PI*r;
+  var dash  = circ*(pctDisp/100);
+  var gap   = circ-dash;
+  var pctInt = Math.round(pct);
+
+  var svg = '<svg width="80" height="80" viewBox="0 0 80 80">'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--bg4)" stroke-width="'+sw+'"/>'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+sw+'"'+
+      ' stroke-dasharray="'+dash.toFixed(2)+' '+gap.toFixed(2)+'"'+
+      ' stroke-dashoffset="'+(circ/4).toFixed(2)+'"'+
+      ' stroke-linecap="round"'+
+      ' transform="rotate(-90 '+cx+' '+cy+')"'+
+      ' style="transition:stroke-dasharray .8s ease;filter:drop-shadow(0 0 5px rgba(59,130,246,.55))"/>'+
+    '</svg>';
+
+  var orderQty  = t.orderQty || 0;
+  var adoTxt    = (t.adoMinimo !== null && t.adoMinimo !== undefined)
+    ? orderQty.toLocaleString('pt-BR')+' Ord.'
+    : '<span style="color:var(--text3);">ADO mín. não cadastrado</span>';
+
+  return '<div class="prog-cell">'+
+    '<div class="donut-wrap" title="'+pct.toFixed(1)+'%">'+svg+
+      '<div class="donut-label">'+
+        '<span class="donut-pct" style="color:'+color+'">'+pctInt+'<small>%</small></span>'+
+      '</div>'+
+    '</div>'+
+    '<div class="prog-detail">'+
+      '<div class="pack-frac" style="font-size:11px;">'+adoTxt+'</div>'+
+    '</div>'+
+  '</div>';
+}
+
+/* v1.62 (item 4, Iury pediu): renomeado sem a palavra "ADO" — mostra
+   quantidade carregada / mínimo do destino, com o que falta em parênteses. */
+function volumeCell(t){
+  if(t.adoMinimo === null || t.adoMinimo === undefined){
+    return '<span style="color:var(--text3);font-size:11px;">--</span>';
+  }
+  var atual = t.orderQty || 0;
+  var alvo  = t.adoMinimo;
+  var falta = Math.max(alvo - atual, 0);
+  var cor   = atual >= alvo ? 'var(--grn)' : 'var(--red)';
+  return '<div style="font-family:var(--mono);font-size:12px;color:'+cor+';white-space:nowrap;">'+
+    atual.toLocaleString('pt-BR')+'/'+alvo.toLocaleString('pt-BR')+
+    (falta>0 ? ' <span style="color:var(--text3);">(faltam '+falta.toLocaleString('pt-BR')+')</span>' : ' ✓')+
+  '</div>';
+}
+
 function donutCell(t){
   var pct      = t.pct;
   var pctDisp  = Math.min(pct, 100);
@@ -1332,6 +1472,8 @@ function renderTable(){
       '<td>'+evolucaoBadge(t.evolucaoCode)+'</td>'+
       '<td'+(t.motivo?' title="Motivo: '+t.motivo.replace(/"/g,'&quot;')+'"':'')+'>'+statusBadge(t.status)+(farolOn?farolBadge(t):'')+'</td>'+
       '<td>'+donutCell(t)+'</td>'+
+      '<td>'+ocupacaoDonutCell(t)+'</td>'+
+      '<td style="text-align:center;">'+volumeCell(t)+'</td>'+
       '<td style="text-align:center;">'+loStr+'</td>'+
       '<td style="text-align:center;font-family:var(--mono);font-size:11px;">'+t.total+'</td>'+
       '<td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--grn);">'+t.embaladas+'</td>'+
@@ -1356,10 +1498,12 @@ function renderTable(){
       sortableTh('EVOLUÇÃO','evolucaoCode')+
       sortableTh('STATUS','status')+
       sortableTh('LEFT-OVER %','pct','min-width:260px;')+
+      sortableTh('OCUPAÇÃO %','ocupacaoPct','min-width:200px;')+
+      sortableTh('VOLUME (destino)','orderQty','text-align:center;')+
       sortableTh('PERDIDAS','leftOver','text-align:center;')+
       sortableTh('TOTAL TOs','total','text-align:center;')+
       sortableTh('EMBALADAS','embaladas','text-align:center;')+
-      sortableTh('ETA ORIGEM / CPT (−2h)','eta')+
+      sortableTh('ETA ORIGEM / CPT','eta')+
     '</tr></thead>'+
     '<tbody>'+rows.join('')+'</tbody>'+
     '</table>';

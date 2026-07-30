@@ -394,6 +394,11 @@ html, body {
   color: var(--text2);
   border: 1px solid var(--line);
 }
+.motivo-capmax {
+  background: rgba(167,139,250,.16);
+  color: #a78bfa;
+  border: 1px solid rgba(167,139,250,.45);
+}
 
 .farol-badge {
   display: inline-flex;
@@ -1030,6 +1035,11 @@ function compute(){
     /* dest precisa vir ANTES pra buscar o ADO mínimo certo na tabela */
     var dest        = (trip.next_station_name && trip.next_station_name[0]) || '--';
     var ocupacaoPct = (typeof trip.vehicle_capacity_percent === 'number') ? trip.vehicle_capacity_percent : null;
+    /* v1.70 (Iury pediu): capacidade PREVISTA — previsão do próprio SPX de
+       onde a ocupação vai terminar, diferente da ocupação ATUAL (que só
+       reflete o que já foi carregado até agora). Permite avisar cedo, ainda
+       durante o carregamento, que o veículo vai bater 100% no final. */
+    var predictRate = (typeof trip.predict_loading_rate === 'number') ? trip.predict_loading_rate : null;
     /* v1.66 (Iury corrigiu de novo — dois números diferentes, nunca mais
        confundir):
        - orderLoaded (X, exibido na coluna VOLUME): SÓ o que já foi
@@ -1090,7 +1100,7 @@ function compute(){
       tipologia: trip.vehicle_type_name || '--',
       eta: eta, std: std, corte: corte,
       total: total, embaladas: embaladas, leftOver: leftOver, breakdown: breakdown, pct: pct,
-      ocupacaoPct: ocupacaoPct, orderLoaded: orderLoaded, orderTotal: orderTotal, adoMinimo: adoMinimo,
+      ocupacaoPct: ocupacaoPct, predictRate: predictRate, orderLoaded: orderLoaded, orderTotal: orderTotal, adoMinimo: adoMinimo,
       status: statusFinal, turno: turno, evolucaoCode: evolucaoFinal,
       partiu: !!(trip.atd && trip.atd > 0), /* trip já saiu — se leftOver>0 aqui, é definitivo */
       motivo: canceladaViaField ? (fieldTrip.remark || 'não informado, nunca teve chegada registrada') : undefined
@@ -1136,7 +1146,7 @@ function compute(){
         tipologia: trip.vehicle_type_name || '--',
         eta: eta, std: std, corte: corte,
         total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
-        ocupacaoPct: null, orderLoaded: 0, orderTotal: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
+        ocupacaoPct: null, predictRate: null, orderLoaded: 0, orderTotal: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
         status: 'cancelado', turno: turno, evolucaoCode: -1,
         partiu: false,
         motivo: trip.remark || 'não informado, nunca teve chegada registrada'
@@ -1152,7 +1162,7 @@ function compute(){
         tipologia: trip.vehicle_type_name || '--',
         eta: eta, std: std, corte: corte,
         total: 0, embaladas: 0, leftOver: 0, breakdown: [], pct: 0,
-        ocupacaoPct: null, orderLoaded: 0, orderTotal: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
+        ocupacaoPct: null, predictRate: null, orderLoaded: 0, orderTotal: 0, adoMinimo: (ADO_MINIMO[dest] !== undefined ? ADO_MINIMO[dest] : null),
         status: 'sem_dado', turno: turno, evolucaoCode: evolucaoFromFieldLeg(ce3Leg),
         partiu: !!(ce3Leg.seal_time && ce3Leg.seal_time > 0)
       });
@@ -1303,6 +1313,15 @@ function motivoStatus(t){
   if(t.adoMinimo !== null && t.adoMinimo !== undefined){
     var adoAtingido = (t.orderTotal||0) >= t.adoMinimo;
     if(!adoAtingido){
+      /* v1.70: distingue "ainda dá tempo de carregar mais" de "esse
+         veículo já bate no teto físico dele — ADO inatingível com essa
+         tipologia" (problema estrutural, não de execução). Usa a
+         previsão do SPX (predictRate) pra avisar cedo, antes mesmo do
+         carregamento terminar. */
+      if(t.predictRate !== null && t.predictRate !== undefined && t.predictRate >= 100){
+        return {label:'ADO INATINGÍVEL — CAPACIDADE MÁXIMA', cls:'motivo-capmax',
+          title:'Veículo projetado pra terminar em '+Math.round(t.predictRate)+'% de ocupação (teto físico), mas volume ('+(t.orderTotal||0).toLocaleString('pt-BR')+' orders) fica abaixo do ADO mínimo do destino ('+t.adoMinimo.toLocaleString('pt-BR')+') mesmo assim — não é possível resolver carregando mais.'};
+      }
       return {label:'ADO NÃO ATINGIDO', cls:'motivo-ado', title:'Volume da trip ('+(t.orderTotal||0).toLocaleString('pt-BR')+' orders) abaixo do mínimo do destino ('+t.adoMinimo.toLocaleString('pt-BR')+')'};
     }
     if(t.ocupacaoPct !== null && t.ocupacaoPct !== undefined && t.ocupacaoPct < 100){
@@ -1447,6 +1466,22 @@ function ocupacaoDonutCell(t){
     ? orderTotal.toLocaleString('pt-BR')+' Ord.'
     : '<span style="color:var(--text3);">ADO mín. não cadastrado</span>';
 
+  /* v1.70: linha de Capacidade Prevista (predict_loading_rate) — previsão
+     do SPX de onde a ocupação vai terminar, avisa cedo (ainda durante o
+     carregamento) que o veículo vai bater o teto físico. Se prevista>=100%
+     e ADO mínimo NÃO atingido, destaca em roxo — é sinal de "capacidade
+     máxima, ADO inatingível com esse veículo", problema estrutural, não
+     motivo pra continuar esperando carregar mais. */
+  var previstaLine = '';
+  if(t.predictRate !== null && t.predictRate !== undefined){
+    var adoInatingivel = (t.adoMinimo !== null && t.adoMinimo !== undefined)
+      && orderTotal < t.adoMinimo && t.predictRate >= 100;
+    var pCor = adoInatingivel ? 'var(--roxo, #a78bfa)' : 'var(--text3)';
+    previstaLine = '<div class="pack-frac" style="font-size:10px;color:'+pCor+';margin-top:2px;">'+
+      'Cap. prevista: '+Math.round(t.predictRate)+'%'+(adoInatingivel?' ⚠️':'')+
+    '</div>';
+  }
+
   return '<div class="prog-cell">'+
     '<div class="donut-wrap" title="'+pct.toFixed(1)+'%">'+svg+
       '<div class="donut-label">'+
@@ -1455,6 +1490,7 @@ function ocupacaoDonutCell(t){
     '</div>'+
     '<div class="prog-detail">'+
       '<div class="pack-frac" style="font-size:11px;">'+adoTxt+'</div>'+
+      previstaLine+
     '</div>'+
   '</div>';
 }

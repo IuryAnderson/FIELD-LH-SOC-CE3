@@ -766,6 +766,18 @@ function toggleHideTrip(tn){
   updateKPIs(); renderTable();
 }
 
+/* v1.71: retorna "YYYY-MM-DD" usando data LOCAL (não UTC) — toISOString()
+   converte pra UTC, e como BRT é UTC-3, isso desalinhava o filtro de
+   período por até algumas horas perto da virada do dia. Já tinha sido
+   corrigido numa versão anterior do dashboard, mas se perdeu antes desta
+   sessão (mesma classe de regressão do botão de ocultar/brilho pulsante). */
+function localDateStr(d){
+  var y = d.getFullYear();
+  var m = String(d.getMonth()+1).padStart(2,'0');
+  var day = String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+}
+
 function filteredTrips(){
   var dF=document.getElementById('f-date-from')?document.getElementById('f-date-from').value:'';
   var dT=document.getElementById('f-date-to')?document.getElementById('f-date-to').value:'';
@@ -780,7 +792,7 @@ function filteredTrips(){
        desconhecido sempre aparece, pra não esconder dado por falta de mapa */
     if([5,10,40,50,-1].indexOf(t.evolucaoCode)!==-1 && !F_EVO.has(t.evolucaoCode)) return false;
     if(dV&&t.dest!==dV)return false;
-    if(t.eta){var ed=t.eta.toISOString().slice(0,10);if(dF&&ed<dF)return false;if(dT&&ed>dT)return false;}
+    if(t.eta){var ed=localDateStr(t.eta);if(dF&&ed<dF)return false;if(dT&&ed>dT)return false;}
     return true;
   });
   return sortTrips(list);
@@ -1207,7 +1219,10 @@ function updateKPIs(){
     geralStatus==='warn'?'⚠ Atenção — próximo da meta':
     '✗ Abaixo do mínimo — ação imediata';
 
-  document.getElementById('kpi-trips').textContent = TRIPS.filter(function(t){return t.status!=='cancelado' && t.status!=='sem_dado';}).length;
+  /* v1.71: usa vis0 (já passou por período/turno/destino/ocultas e exclui
+     cancelado/sem_dado) — antes usava TRIPS bruto, mostrando tudo que o
+     bot capturou, ignorando os filtros ativos na tela. */
+  document.getElementById('kpi-trips').textContent = vis0.length;
   document.getElementById('kpi-trips-sub').textContent =
     vis0.filter(function(t){return t.status==='crit';}).length+' críticas · '+
     vis0.filter(function(t){return t.status==='warn';}).length+' em atenção';
@@ -1528,15 +1543,17 @@ function donutCell(t){
   var pctInt   = Math.round(pct);
   var pctExact = (pct>=100?'100':pct.toFixed(1))+'%';
 
-  /* v1.67: classe de animação conforme o estado real da trip —
-     piscar (urgente) sempre tem prioridade sobre o brilho suave. */
+  /* v1.71 (Iury pediu): removido o piscar de "já partiu com left-over" —
+     queria só a MESMA reluzência estática que já existe na Ocupação%,
+     na cor vermelha (que já vem de progColor() sozinho, sem precisar de
+     classe animada nenhuma — é só deixar sem animClass nesse caso). */
   var animClass = '';
   if(t.status!=='cancelado' && t.status!=='sem_dado'){
-    if(t.partiu && t.leftOver > 0){
-      animClass = 'donut-blink-alert'; /* já saiu com carga pra trás — problema real */
-    } else if(pct < 100){
+    if(!(t.partiu && t.leftOver > 0) && pct < 100){
       animClass = 'donut-pulse-glow'; /* ainda carregando, esperando completar */
     }
+    /* partiu && leftOver>0: sem classe — cai no brilho estático padrão,
+       já vermelho (progColor), igual ao visual da Ocupação */
   }
 
   var svg = '<svg class="'+animClass+'" width="80" height="80" viewBox="0 0 80 80">'+

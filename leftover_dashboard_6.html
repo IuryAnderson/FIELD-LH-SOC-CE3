@@ -368,6 +368,33 @@ html, body {
    partiu. Diferente do countdown genérico (que já pisca abaixo de 20min
    independente de ter left-over) — esse é especificamente "risco real de
    deixar carga pra trás se o veículo sair agora". */
+.motivo-tag {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  white-space: nowrap;
+}
+.motivo-ado {
+  background: rgba(239,68,68,.18);
+  color: var(--red);
+  border: 1px solid rgba(239,68,68,.5);
+  animation: pulse-red 1.8s infinite;
+}
+.motivo-ocup {
+  background: var(--amb-d);
+  color: var(--amb);
+  border: 1px solid rgba(245,158,11,.35);
+}
+.motivo-to {
+  background: var(--bg4);
+  color: var(--text2);
+  border: 1px solid var(--line);
+}
+
 .farol-badge {
   display: inline-flex;
   align-items: center;
@@ -1255,6 +1282,33 @@ function progColor(pct){
   return 'var(--red)';
 }
 
+/* v1.68 (Iury pediu): identifica O MOTIVO ESPECÍFICO por trás do status
+   Crítico/Atenção — sem isso, "ADO não atingido", "ocupação baixa" e
+   "%TOs baixo" ficavam todos escondidos atrás do mesmo badge genérico
+   CRÍTICO, sem dar pra saber qual critério disparou o alerta só de olhar.
+   Segue a MESMA ordem de precedência do computeStatus(). */
+function motivoStatus(t){
+  if(t.status==='cancelado' || t.status==='sem_dado') return null;
+  if(t.adoMinimo !== null && t.adoMinimo !== undefined){
+    var adoAtingido = (t.orderTotal||0) >= t.adoMinimo;
+    if(!adoAtingido){
+      return {label:'ADO NÃO ATINGIDO', cls:'motivo-ado', title:'Volume da trip ('+(t.orderTotal||0).toLocaleString('pt-BR')+' orders) abaixo do mínimo do destino ('+t.adoMinimo.toLocaleString('pt-BR')+')'};
+    }
+    if(t.ocupacaoPct !== null && t.ocupacaoPct !== undefined && t.ocupacaoPct < 100){
+      return {label:'OCUPAÇÃO < 100%', cls:'motivo-ocup', title:'Veículo saiu (ou está) abaixo da capacidade plena ('+t.ocupacaoPct.toFixed(0)+'%), mesmo com ADO mínimo atingido'};
+    }
+  }
+  if(t.status==='crit' || t.status==='warn'){
+    return {label:'%TOs '+(t.status==='crit'?'CRÍTICO':'ATENÇÃO'), cls:'motivo-to', title:'Percentual de TOs embaladas: '+t.pct.toFixed(1)+'%'};
+  }
+  return null;
+}
+function motivoBadge(t){
+  var m = motivoStatus(t);
+  if(!m) return '';
+  return '<div class="motivo-tag '+m.cls+'" title="'+m.title.replace(/"/g,'&quot;')+'">'+m.label+'</div>';
+}
+
 function statusBadge(status){
   if(status==='ok')   return '<span class="badge badge-ok"><span class="dot"></span>META</span>';
   if(status==='warn') return '<span class="badge badge-warn"><span class="dot"></span>ATENÇÃO</span>';
@@ -1552,7 +1606,7 @@ function renderTable(){
       '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t.driver+'">'+shortDriverName(t.driver)+'</td>'+
       '<td style="font-size:11px;">'+t.tipologia+'</td>'+
       '<td>'+evolucaoBadge(t.evolucaoCode)+'</td>'+
-      '<td'+(t.motivo?' title="Motivo: '+t.motivo.replace(/"/g,'&quot;')+'"':'')+'>'+statusBadge(t.status)+(farolOn?farolBadge(t):'')+'</td>'+
+      '<td'+(t.motivo?' title="Motivo: '+t.motivo.replace(/"/g,'&quot;')+'"':'')+'>'+statusBadge(t.status)+motivoBadge(t)+(farolOn?farolBadge(t):'')+'</td>'+
       '<td>'+donutCell(t)+'</td>'+
       '<td>'+ocupacaoDonutCell(t)+'</td>'+
       '<td style="text-align:center;">'+volumeCell(t)+'</td>'+

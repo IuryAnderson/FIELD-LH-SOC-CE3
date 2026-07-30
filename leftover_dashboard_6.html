@@ -974,7 +974,16 @@ function compute(){
        ADO mínimo certo na tabela. */
     var dest        = (trip.next_station_name && trip.next_station_name[0]) || '--';
     var ocupacaoPct = (typeof trip.vehicle_capacity_percent === 'number') ? trip.vehicle_capacity_percent : null;
-    var orderQty    = trip.loaded_order_quantity || trip.vehicle_load_quantity || 0;
+    /* v1.65 (bug corrigido): orderQty é a soma carregado+pendente — o "ADO"
+       real dessa trip específica, já documentado assim antes desta sessão
+       (nota antiga: "ADO = loaded_order_quantity + pending_order_quantity,
+       não um mínimo configurado"). Eu tinha usado só loaded_order_quantity,
+       que fica 0 antes da trip começar a carregar — fazendo toda trip em
+       Atribuído/Chegou aparecer com "orders=0" e cair em Crítico sempre.
+       ADO_MINIMO é o LIMIAR (métrica fixa por destino, tabela Stage Out);
+       orderQty é o volume REAL dessa trip (dinâmico, muda com a carga). */
+    var orderQty    = (trip.loaded_order_quantity || 0) + (trip.pending_order_quantity || 0);
+    if(orderQty === 0) orderQty = trip.vehicle_load_quantity || 0; /* fallback se os dois vierem ausentes */
     var adoMinimo   = (ADO_MINIMO[dest] !== undefined) ? ADO_MINIMO[dest] : null;
     var status      = computeStatus(pct, adoMinimo, orderQty, ocupacaoPct);
 
@@ -1098,10 +1107,13 @@ function compute(){
 
 /* ── KPIs ────────────────────────────────────────────────────── */
 function updateKPIs(){
-  /* Canceladas NUNCA entram nos KPIs (não fazem sentido pra Left-Over de
-     packaging), mesmo se o usuário tiver ligado o filtro de visualização
-     delas na tabela — isso é só pra visibilidade operacional. */
+  /* Canceladas e sem_dado NUNCA entram nos KPIs (não fazem sentido pra
+     Left-Over de packaging), mesmo se o usuário tiver ligado o filtro de
+     visualização delas na tabela — isso é só pra visibilidade operacional. */
   var vis0=filteredTrips().filter(function(t){return t.status!=='cancelado' && t.status!=='sem_dado';});
+  var totalTOs=vis0.reduce(function(s,t){return s+t.total;},0);
+  var totalEmb=vis0.reduce(function(s,t){return s+t.embaladas;},0);
+  var totalLO=vis0.reduce(function(s,t){return s+t.leftOver;},0);
   var geralPct   = totalTOs > 0 ? (totalEmb/totalTOs*100) : 100;
   var geralStatus= geralPct >= 100?'ok':geralPct>=99?'warn':'crit';
 
@@ -1443,7 +1455,12 @@ function renderTable(){
     ? ' <span style="font-size:10px;font-weight:700;color:var(--red);margin-left:10px;animation:pulse-red 1.2s infinite;">🚨 '+farolCount+' prestes a sair com left-over</span>'
     : '';
 
-  renderPendingPanel();
+  /* v1.65: renderPendingPanel() removido daqui — Iury já tinha pedido pra
+     não renderizar esse aviso antes, e o mecanismo sem_dado (v1.62) já
+     cobre esse gap de forma mais clara (mostra a trip na própria tabela
+     com o status certo, em vez de um banner pedindo clique manual —
+     premissa que não faz mais sentido com o auto-poll completo). Função
+     continua no código, só não é mais chamada. */
 
   var wrap = document.getElementById('table-wrap');
   if(!vis.length){

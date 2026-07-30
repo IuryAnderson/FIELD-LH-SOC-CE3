@@ -1066,12 +1066,22 @@ function compute(){
        volta — então "mais avançado" é sempre a leitura mais confiável. */
     var evolucaoCode = trip.trip_station_status;
     var fieldTrip = fieldByTn[tn];
+    var canceladaViaField = false;
     if(fieldTrip){
       var fieldEvo = evolucaoFromFieldLeg(ce3LegOf(fieldTrip));
       if(evolucaoOrdinal(fieldEvo) > evolucaoOrdinal(evolucaoCode)){
         evolucaoCode = fieldEvo;
       }
+      /* v1.69 (Iury identificou o buraco): isCanceladaField() só rodava
+         pras trips AUSENTES do ob_trip_detail — mas uma trip cancelada
+         PODE continuar existindo lá (ex: LT0Q7U02C7J41, trip_status:100 +
+         remark:"Otimização de SPR." no field_trip_list, mas com registro
+         normal em ob_trip_detail). Checa aqui também, na mesma reconciliação. */
+      if(isCanceladaField(fieldTrip)) canceladaViaField = true;
     }
+
+    var statusFinal = canceladaViaField ? 'cancelado' : status;
+    var evolucaoFinal = canceladaViaField ? -1 : evolucaoCode;
 
     return {
       tn: tn,
@@ -1081,8 +1091,9 @@ function compute(){
       eta: eta, std: std, corte: corte,
       total: total, embaladas: embaladas, leftOver: leftOver, breakdown: breakdown, pct: pct,
       ocupacaoPct: ocupacaoPct, orderLoaded: orderLoaded, orderTotal: orderTotal, adoMinimo: adoMinimo,
-      status: status, turno: turno, evolucaoCode: evolucaoCode,
-      partiu: !!(trip.atd && trip.atd > 0) /* trip já saiu — se leftOver>0 aqui, é definitivo */
+      status: statusFinal, turno: turno, evolucaoCode: evolucaoFinal,
+      partiu: !!(trip.atd && trip.atd > 0), /* trip já saiu — se leftOver>0 aqui, é definitivo */
+      motivo: canceladaViaField ? (fieldTrip.remark || 'não informado, nunca teve chegada registrada') : undefined
     };
   });
 

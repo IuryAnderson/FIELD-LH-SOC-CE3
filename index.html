@@ -1671,18 +1671,16 @@ function exportSeatalkIn(){
       }
     }
 
-    /* Situação texto — referência ÚNICA e ininterrupta desde a chegada
-       (MAX(actual,sched)), CORRIGIDO (20/07) — só o rótulo muda por
-       estágio, o relógio nunca reinicia. */
+    /* Situação texto — referência única MAX(actual,sched), rótulo muda por estágio */
     var sitStr='';
     if(t.evolucao==='unloaded'){
       sitStr='Concluído';
     } else if(t.evolucao!=='pending'){
-      var ref=cdRef(t),sitLabel;
-      if(t.evolucao==='arrived')sitLabel='Aguardando fila';
-      else if(t.evolucao==='patio')sitLabel='Aguardando doca';
-      else if(t.evolucao==='docado')sitLabel='Aguardando abertura';
-      else sitLabel='Em descarga';
+      var ref,sitLabel;
+      if(t.evolucao==='arrived'){ref=cdRef(t);sitLabel='Aguardando fila';}
+      else if(t.evolucao==='patio'){ref=cdRef(t);sitLabel='Aguardando doca';}
+      else if(t.evolucao==='docado'){ref=t.unloadDocked||cdRef(t);sitLabel='Aguardando abertura';}
+      else{ref=t.unsealed||cdRef(t);sitLabel='Em descarga';}
       if(t.sched&&now<t.sched){
         var ataMin=Math.round((t.sched-now)/60000);
         sitStr='ETA em '+cdFmtMin(ataMin)+' (early \u2014 di\u00E1ria n\u00E3o iniciada)';
@@ -1915,19 +1913,7 @@ function obCapacity(tipo,perfil,tipologia){
 }
 
 function isCancelada(t){
-  /* NOVO (21/07): mesma lógica já confirmada com 3 trips reais canceladas
-     no bot (background.js v1.43/v1.44) — trip_status=100 E (nunca chegou
-     OU remark preenchido) é o sinal mais confiável, bateu com 3 motivos
-     de cancelamento diferentes já vistos na prática (nunca chegou;
-     chegou mas remanejada por otimização; chegou mas cancelada por falta
-     de pacote). Checado ANTES do Planner/heurística — é mais direto e
-     não depende de CSV manual. arrived cobre tanto Outbound (actualArr)
-     quanto Inbound (actual), já que essa função atende os dois tipos. */
-  var arrived = t.actualArr || t.actual;
-  if(t.tripStatus === 100 && (!arrived || (t.remark && t.remark.trim() !== ''))){
-    return true;
-  }
-  /* 1a prioridade (fallback): statusPlanner do Planner (campo authoritative).
+  /* 1a prioridade: statusPlanner do Planner (campo authoritative).
      Considera CANCELADO, INFRUTÍFERA, NO SHOW, NÃO CONSUMIDA como terminais. */
   if(t.statusPlanner){
     var sp=t.statusPlanner;
@@ -2488,21 +2474,24 @@ function cdCell(t){
            '<div class="cd-sub">ETA '+pad(t.sched.getDate())+'/'+pad(t.sched.getMonth()+1)+' '+pad(t.sched.getHours())+':'+pad(t.sched.getMinutes())+'</div>';
   }
 
-  /* Referência ÚNICA e ininterrupta desde a chegada — MAX(actual,sched).
-     CORRIGIDO (20/07, Iury): antes, "docado" e "unseal" trocavam a
-     referência pra unloadDocked/unsealed, fazendo o regressivo de 8h/12h
-     "recomeçar" a cada mudança de estágio. O subLabel (texto descritivo)
-     continua mudando por estágio — só o RELÓGIO fica fixo desde a
-     chegada, sempre. */
-  var ref=cdRef(t), subLabel;
+  /* Referência e rótulo por estágio:
+     arrived / patio → MAX(actual, sched): diária contada desde a chegada
+     docado          → unloadDocked: desde quando entrou na doca de descarga
+     unseal          → unsealed: desde quando o deslacre foi iniciado
+     Proteção early em todos: se sched > now, relógio ainda não disparou. */
+  var ref, subLabel;
   if(t.evolucao==='arrived'){
+    ref=cdRef(t); /* MAX(actual, sched) */
     subLabel='Aguardando fila';
   } else if(t.evolucao==='patio'){
+    ref=cdRef(t); /* MAX(actual, sched) — diária conta desde a chegada */
     subLabel='Aguardando doca';
   } else if(t.evolucao==='docado'){
+    ref=t.unloadDocked||cdRef(t); /* desde quando entrou na doca */
     subLabel='Aguardando abertura';
   } else {
     /* unseal */
+    ref=t.unsealed||cdRef(t); /* desde quando o deslacre foi iniciado */
     subLabel='Em descarga';
   }
 
@@ -3938,7 +3927,76 @@ function importSPXBridge(){
   });
 }
 
+/* v1.76 (endpoint trazido por Iury, 02/08): fila real de chegada Inbound,
+   via API de "data mart" de gestão — família DIFERENTE da usada em
+   _fetchObQueue, mas mesmo princípio: fetch direto da página (mesma
+   sessão do navegador), sem precisar da extensão. Sem paginação — a URL
+   não tem parâmetro de intervalo, devolve a fila atual completa numa
+   única chamada. Objetivo: aposentar de vez o "Importar Fila" manual
+   pro lado Inbound (queue_status ainda sem significado 100% confirmado —
+   ver applyArrivedQueueEnrichment). */
+function _fetchArrivedQueue(callback){
+  var URL_ARR = 'https://spx.shopee.com.br/mgmt/api/pc/forward/data/api_mart/mgmt_app/data_api/operation__soc_facility__arrived_truck_detail_v3';
+  fetch(URL_ARR, {credentials:'include'})
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return r.json();
+    })
+    .then(function(data){
+      if(!data||data.retcode!==0){
+        throw new Error('retcode '+(data&&data.retcode!=null?data.retcode:'?'));
+      }
+      var list = (data.data&&data.data.list)||[];
+      callback(list, null);
+    })
+    .catch(function(err){
+      callback(null, 'Erro ao buscar fila de chegada Inbound: '+err.message+'\nVerifique se está logado no SPX e tente novamente.');
+    });
+}
+
+var GLOBAL_ARRIVED_QUEUE = [];
+
+function applyArrivedQueueEnrichment(){
+  /* Cruza a fila viva (por trip_number) com o array IN. Só cobre TEMPO
+     DE FILA (register_time/waiting_time) — esse endpoint NÃO tem campo
+     de doca, então NÃO substitui a atribuição de doca (essa continua
+     vindo de inbound_to_details, via Unseal). queue_status (1/3/4
+     vistos) — hipótese forte (não confirmada) de seguir o MESMO enum
+     já documentado pro lado OB (1=Pendente 2=Atribuído 3=Ocupado
+     4=Encerrado 5=Em espera) — guardado bruto em t.arrQueueStatus,
+     sem essa suposição virar lógica de evolução ainda. */
+  if(!GLOBAL_ARRIVED_QUEUE || !GLOBAL_ARRIVED_QUEUE.length) return;
+  var byTn = {};
+  GLOBAL_ARRIVED_QUEUE.forEach(function(e){
+    if(e.trip_number) byTn[e.trip_number] = e;
+  });
+  IN.forEach(function(t){
+    var e = byTn[t.tn];
+    if(!e) return;
+    if(e.register_time) t.addQTime = new Date(e.register_time*1000);
+    if(typeof e.waiting_time === 'number') t.filaMins = Math.round(e.waiting_time/60);
+    t.queueNumberIB   = e.queue_number || null;
+    t.arrQueueStatus  = (typeof e.queue_status === 'number') ? e.queue_status : null;
+    if(t.addQTime && !t.unsealed && t.evolucao==='arrived') t.evolucao='patio';
+  });
+}
+
+function importArrivedQueueLive(silent){
+  _fetchArrivedQueue(function(list, err){
+    if(err){
+      console.warn('[FIELD Bridge] '+err);
+      if(!silent) alert(err);
+      return;
+    }
+    GLOBAL_ARRIVED_QUEUE = list || [];
+    applyArrivedQueueEnrichment();
+    renderIn(); renderHandover();
+    console.log('[FIELD Bridge] fila Inbound ao vivo: '+GLOBAL_ARRIVED_QUEUE.length+' veículos');
+  });
+}
+
 function _fetchObQueue(callback){
+
   /* Busca a fila OB ativa via POST /dock_management/queue/list.
      Requer que o usuário esteja logado no SPX na mesma sessão do browser.
      queue_status "1,2,3,5,4" = todos os status (Pendente/Atribuído/Ocupado/Em espera/Encerrado).
@@ -4208,8 +4266,7 @@ function buildTripsFromFieldLive(rawList){
         schedArr: schedArr, actualArr: actualArr, sched: sched, cpt: sched,
         actualDep: actualDep, assignTime: assignTime, loadingTime: loadingTime,
         loadedTime: loadedTime, sealedTime: sealedTime, janela: janela,
-        evolucao: evolucao, patioOB: false, docaOB: '', turnoOB: turnoOf(schedArr),
-        tripStatus: trip.trip_status, remark: trip.remark || ''
+        evolucao: evolucao, patioOB: false, docaOB: '', turnoOB: turnoOf(schedArr)
       });
 
     } else if(lastIsCE3 && !firstIsCE3){
@@ -4255,8 +4312,7 @@ function buildTripsFromFieldLive(rawList){
         unsealed: unsealed, unloaded: unloaded, unloadDocked: unloadDocked,
         janela: calcStatus(sched2, today), evolucao: evolucao2,
         toDone: toDone, toTotal: toTotal,
-        turnoArrival: turnoOf(actual2), turnoUnseal: turnoOf(unsealed), turnoUnload: turnoOf(unloaded),
-        tripStatus: trip.trip_status, remark: trip.remark || ''
+        turnoArrival: turnoOf(actual2), turnoUnseal: turnoOf(unsealed), turnoUnload: turnoOf(unloaded)
       });
     }
     /* trips CE3→CE3 (internas) e sem trip_station são ignoradas, igual o
@@ -4306,6 +4362,7 @@ function importFieldTripLive(silent){
        o CSV). */
     if(typeof applyQueueIBEnrichment === 'function') applyQueueIBEnrichment();
     if(typeof applyQueueOBEnrichment === 'function') applyQueueOBEnrichment();
+    if(typeof applyArrivedQueueEnrichment === 'function') applyArrivedQueueEnrichment();
     if(typeof applyPlannerEnrichment === 'function') applyPlannerEnrichment();
     renderIn(); renderOut(); renderHandover(); renderObPred();
     if(typeof renderAnalysis === 'function') renderAnalysis(); /* Análise Inbound — só recalculava no clique de "Filtrar", agora acompanha o live */
@@ -4345,8 +4402,8 @@ function importInboundToDetails(silent){
 
 /* Auto-refresh: puxa do chrome.storage.local a cada 1min, silencioso.
    A extensão já busca sozinha do SPX a cada 5min — isso só reflete na tela. */
-setInterval(function(){ importFieldTripLive(true); importInboundToDetails(true); }, 60000);
-setTimeout(function(){ importFieldTripLive(true); importInboundToDetails(true); }, 1500);
+setInterval(function(){ importFieldTripLive(true); importInboundToDetails(true); importArrivedQueueLive(true); }, 60000);
+setTimeout(function(){ importFieldTripLive(true); importInboundToDetails(true); importArrivedQueueLive(true); }, 1500);
 
 function parseCSVRaw(text,isFin){
   detectSep(text);
